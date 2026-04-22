@@ -16,6 +16,27 @@ The app picks the newest image in the fixed input directory, detects likely occu
 
 `Scrabbler.ConsoleApp/Data/dictionary-pl.txt` is intentionally ignored by git because full Polish dictionaries can be large. `Scrabbler.ConsoleApp/Data/dictionary-pl.sample.txt` is tracked as a tiny template.
 
+## Google Drive Input
+
+The app can also download the newest board screenshot from a Google Drive folder.
+
+1. In Google Cloud Console, create an OAuth client ID with application type `Desktop app`.
+2. Download the client secret JSON and place it at `Scrabbler.ConsoleApp/Secrets/google-drive-client-secret.json`.
+3. Open your Drive folder in the browser and copy the folder ID from the URL. In a URL like `https://drive.google.com/drive/folders/abc123`, the folder ID is `abc123`.
+4. Configure `Scrabbler.ConsoleApp/appsettings.json`:
+
+```json
+{
+  "InputSource": "GoogleDrive",
+  "GoogleDriveFolderId": "your-folder-id",
+  "GoogleDriveCredentialsPath": "Secrets/google-drive-client-secret.json",
+  "GoogleDriveTokenDirectory": "Secrets/google-token",
+  "GoogleDriveDownloadDirectory": "Input/Downloaded"
+}
+```
+
+The first Google Drive run opens a browser for Google consent. Later runs reuse the cached token from `Scrabbler.ConsoleApp/Secrets/google-token`. Credentials, tokens, local screenshots, downloaded Drive images, and the full dictionary are ignored by git.
+
 ## Corrections
 
 Coordinates use columns `A` through `O` and rows `1` through `15`.

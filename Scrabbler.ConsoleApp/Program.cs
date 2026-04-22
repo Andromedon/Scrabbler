@@ -17,14 +17,41 @@ var configuration = new ConfigurationBuilder()
 var settings = AppSettings.From(configuration, baseDirectory, workingDirectory);
 var console = new ScrabblerConsole();
 
-Directory.CreateDirectory(settings.InputDirectory);
+if (settings.InputSource == InputSource.Local)
+{
+    Directory.CreateDirectory(settings.InputDirectory);
+    console.WriteInfo("Input source: local directory");
+    console.WriteInfo($"Scanning input directory: {settings.InputDirectory}");
+}
+else
+{
+    console.WriteInfo("Input source: Google Drive");
+    console.WriteInfo($"Google Drive download directory: {settings.GoogleDriveDownloadDirectory}");
+}
 
-console.WriteInfo($"Scanning input directory: {settings.InputDirectory}");
-var inputProvider = new FixedDirectoryInputImageProvider(settings.InputDirectory);
-var selectedImage = inputProvider.GetSelectedImage();
+var inputProvider = InputImageProviderFactory.Create(settings);
+FileInfo? selectedImage;
+try
+{
+    selectedImage = await inputProvider.GetSelectedImageAsync();
+}
+catch (Exception ex)
+{
+    console.WriteError($"Input image selection failed: {ex.Message}");
+    return;
+}
+
 if (selectedImage is null)
 {
-    console.WriteError($"No board image found. Put a .jpg, .jpeg, .png, .webp, or .bmp file in: {settings.InputDirectory}");
+    if (settings.InputSource == InputSource.Local)
+    {
+        console.WriteError($"No board image found. Put a .jpg, .jpeg, .png, .webp, or .bmp file in: {settings.InputDirectory}");
+    }
+    else
+    {
+        console.WriteError($"No supported board image found in Google Drive folder '{settings.GoogleDriveFolderId}'.");
+    }
+
     return;
 }
 

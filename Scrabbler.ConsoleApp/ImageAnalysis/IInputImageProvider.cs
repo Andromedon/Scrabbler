@@ -2,5 +2,5 @@ namespace Scrabbler.App.ImageAnalysis;
 
 public interface IInputImageProvider
 {
-    FileInfo? GetSelectedImage();
+    Task<FileInfo?> GetSelectedImageAsync(CancellationToken cancellationToken = default);
 }

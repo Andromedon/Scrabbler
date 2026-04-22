@@ -4,7 +4,12 @@ namespace Scrabbler.App.Configuration;
 
 public sealed record AppSettings(
     string ContentRoot,
+    InputSource InputSource,
     string InputDirectory,
+    string GoogleDriveFolderId,
+    string GoogleDriveCredentialsPath,
+    string GoogleDriveTokenDirectory,
+    string GoogleDriveDownloadDirectory,
     string DictionaryPath,
     string LetterValuesPath,
     string BonusLayoutPath)
@@ -21,10 +26,30 @@ public sealed record AppSettings(
 
         return new AppSettings(
             contentRoot,
+            ParseInputSource(configuration["InputSource"]),
             Resolve(contentRoot, configuration["InputDirectory"], "Input"),
+            configuration["GoogleDriveFolderId"] ?? string.Empty,
+            Resolve(contentRoot, configuration["GoogleDriveCredentialsPath"], "Secrets/google-drive-client-secret.json"),
+            Resolve(contentRoot, configuration["GoogleDriveTokenDirectory"], "Secrets/google-token"),
+            Resolve(contentRoot, configuration["GoogleDriveDownloadDirectory"], "Input/Downloaded"),
             Resolve(contentRoot, configuration["DictionaryPath"], "Data/dictionary-pl.txt"),
             Resolve(contentRoot, configuration["LetterValuesPath"], "Data/letter-values-pl.json"),
             Resolve(contentRoot, configuration["BonusLayoutPath"], "Data/bonus-layout.json"));
+    }
+
+    private static InputSource ParseInputSource(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return InputSource.Local;
+        }
+
+        if (Enum.TryParse<InputSource>(value, ignoreCase: true, out var inputSource))
+        {
+            return inputSource;
+        }
+
+        throw new InvalidOperationException($"Unsupported InputSource '{value}'. Use 'Local' or 'GoogleDrive'.");
     }
 
     public static string FindContentRoot(string workingDirectory, string baseDirectory)
@@ -53,4 +78,10 @@ public sealed record AppSettings(
 
         return Path.GetFullPath(workingDirectory);
     }
+}
+
+public enum InputSource
+{
+    Local,
+    GoogleDrive
 }

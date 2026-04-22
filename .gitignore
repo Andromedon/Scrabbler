@@ -11,6 +11,10 @@ Scrabbler.ConsoleApp/Input/*
 Input/*
 !Input/.gitkeep
 
+# Local Google Drive OAuth credentials, tokens, and downloads
+Scrabbler.ConsoleApp/Secrets/
+Scrabbler.ConsoleApp/Input/Downloaded/
+
 # Full local dictionary; use the sample file as the tracked template.
 Scrabbler.ConsoleApp/Data/dictionary-pl.txt
 

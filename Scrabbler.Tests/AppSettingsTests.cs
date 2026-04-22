@@ -19,7 +19,11 @@ public sealed class AppSettingsTests : IDisposable
         var settings = AppSettings.From(EmptyConfiguration(), "/tmp/bin", _root);
 
         Assert.Equal(Path.Combine(_root, "Scrabbler.ConsoleApp"), settings.ContentRoot);
+        Assert.Equal(InputSource.Local, settings.InputSource);
         Assert.Equal(Path.Combine(_root, "Scrabbler.ConsoleApp", "Input"), settings.InputDirectory);
+        Assert.Equal(Path.Combine(_root, "Scrabbler.ConsoleApp", "Secrets", "google-drive-client-secret.json"), settings.GoogleDriveCredentialsPath);
+        Assert.Equal(Path.Combine(_root, "Scrabbler.ConsoleApp", "Secrets", "google-token"), settings.GoogleDriveTokenDirectory);
+        Assert.Equal(Path.Combine(_root, "Scrabbler.ConsoleApp", "Input", "Downloaded"), settings.GoogleDriveDownloadDirectory);
         Assert.Equal(Path.Combine(_root, "Scrabbler.ConsoleApp", "Data", "dictionary-pl.txt"), settings.DictionaryPath);
     }
 
@@ -41,13 +45,17 @@ public sealed class AppSettingsTests : IDisposable
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["InputDirectory"] = absoluteInput
+                ["InputDirectory"] = absoluteInput,
+                ["InputSource"] = "GoogleDrive",
+                ["GoogleDriveFolderId"] = "folder-123"
             })
             .Build();
 
         var settings = AppSettings.From(configuration, "/tmp/bin", _root);
 
+        Assert.Equal(InputSource.GoogleDrive, settings.InputSource);
         Assert.Equal(absoluteInput, settings.InputDirectory);
+        Assert.Equal("folder-123", settings.GoogleDriveFolderId);
     }
 
     public void Dispose()

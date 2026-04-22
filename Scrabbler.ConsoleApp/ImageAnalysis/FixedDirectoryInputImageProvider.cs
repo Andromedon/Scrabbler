@@ -2,15 +2,6 @@ namespace Scrabbler.App.ImageAnalysis;
 
 public sealed class FixedDirectoryInputImageProvider : IInputImageProvider
 {
-    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".webp",
-        ".bmp"
-    };
-
     private readonly string _directory;
 
     public FixedDirectoryInputImageProvider(string directory)
@@ -18,19 +9,21 @@ public sealed class FixedDirectoryInputImageProvider : IInputImageProvider
         _directory = directory;
     }
 
-    public FileInfo? GetSelectedImage()
+    public Task<FileInfo?> GetSelectedImageAsync(CancellationToken cancellationToken = default)
     {
         var directory = new DirectoryInfo(_directory);
         if (!directory.Exists)
         {
-            return null;
+            return Task.FromResult<FileInfo?>(null);
         }
 
-        return directory
+        var image = directory
             .EnumerateFiles()
-            .Where(file => SupportedExtensions.Contains(file.Extension))
+            .Where(file => SupportedImageFiles.HasSupportedExtension(file.Name))
             .OrderByDescending(file => file.LastWriteTimeUtc)
             .ThenBy(file => file.Name, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
+
+        return Task.FromResult(image);
     }
 }

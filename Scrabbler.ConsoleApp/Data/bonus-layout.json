@@ -1,0 +1,17 @@
+[
+  ["None","None","3W","None","None","None","2L","None","2L","None","None","None","3W","None","None"],
+  ["None","3L","None","None","None","2W","None","None","None","2W","None","None","None","3L","None"],
+  ["3W","None","None","None","3L","None","None","None","None","None","3L","None","None","None","3W"],
+  ["None","None","None","2L","None","None","None","2W","None","None","None","2L","None","None","None"],
+  ["None","None","3L","None","None","None","2L","None","2L","None","None","None","3L","None","None"],
+  ["None","2W","None","None","None","3L","None","None","None","3L","None","None","None","2W","None"],
+  ["2L","None","None","None","2L","None","None","None","None","None","2L","None","None","None","2L"],
+  ["None","None","None","2W","None","None","None","None","None","None","None","2W","None","None","None"],
+  ["2L","None","None","None","2L","None","None","None","None","None","2L","None","None","None","2L"],
+  ["None","2W","None","None","None","3L","None","None","None","3L","None","None","None","2W","None"],
+  ["None","None","3L","None","None","None","2L","None","2L","None","None","None","3L","None","None"],
+  ["None","None","None","2L","None","None","None","2W","None","None","None","2L","None","None","None"],
+  ["3W","None","None","None","3L","None","None","None","None","None","3L","None","None","None","3W"],
+  ["None","3L","None","None","None","2W","None","None","None","2W","None","None","None","3L","None"],
+  ["None","None","3W","None","None","None","2L","None","2L","None","None","None","3W","None","None"]
+]

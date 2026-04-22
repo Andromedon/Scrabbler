@@ -1,0 +1,20 @@
+# .NET build output
+bin/
+obj/
+
+# Local generated cache
+Scrabbler.ConsoleApp/Cache/
+
+# Local board screenshots
+Scrabbler.ConsoleApp/Input/*
+!Scrabbler.ConsoleApp/Input/.gitkeep
+Input/*
+!Input/.gitkeep
+
+# Full local dictionary; use the sample file as the tracked template.
+Scrabbler.ConsoleApp/Data/dictionary-pl.txt
+
+# OS/editor/user-local files
+.DS_Store
+.idea/
+*.DotSettings.user

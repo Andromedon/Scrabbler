@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Scrabbler.ConsoleApp/Scrabbler.App.csproj" />
+  <Project Path="Scrabbler.Tests/Scrabbler.Tests.csproj" />
+</Solution>

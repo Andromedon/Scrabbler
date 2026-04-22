@@ -8,10 +8,12 @@ namespace Scrabbler.App.ImageAnalysis;
 public sealed class ImageSharpScreenshotBoardImageReader : IBoardImageReader
 {
     private readonly BonusType[,] _bonusLayout;
+    private readonly IReadOnlyDictionary<char, int> _letterValues;
 
-    public ImageSharpScreenshotBoardImageReader(BonusType[,] bonusLayout)
+    public ImageSharpScreenshotBoardImageReader(BonusType[,] bonusLayout, IReadOnlyDictionary<char, int> letterValues)
     {
         _bonusLayout = bonusLayout;
+        _letterValues = letterValues;
     }
 
     public Task<BoardReadResult> ReadAsync(string imagePath)
@@ -29,7 +31,7 @@ public sealed class ImageSharpScreenshotBoardImageReader : IBoardImageReader
             var cellHeight = boardBounds.Height / (double)Board.Size;
             var board = new Board(_bonusLayout);
             var reads = new List<CellRead>();
-            var recognizer = new TileLetterRecognizer();
+            var recognizer = new TileLetterRecognizer(_letterValues);
 
             for (var row = 0; row < Board.Size; row++)
             {

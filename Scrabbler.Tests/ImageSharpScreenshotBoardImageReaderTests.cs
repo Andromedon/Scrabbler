@@ -29,7 +29,7 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
         bonuses[7, 11] = BonusType.DoubleWord;
         bonuses[11, 7] = BonusType.DoubleWord;
         CreateSyntheticBoard(path);
-        var reader = new ImageSharpScreenshotBoardImageReader(bonuses);
+        var reader = new ImageSharpScreenshotBoardImageReader(bonuses, RealLetterValues());
 
         var result = await reader.ReadAsync(path);
 
@@ -55,7 +55,7 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
     public async Task ReadsRealBoardScreenshotFixture()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "TestData", "board-blat.jpg");
-        var reader = new ImageSharpScreenshotBoardImageReader(RealBonuses());
+        var reader = new ImageSharpScreenshotBoardImageReader(RealBonuses(), RealLetterValues());
 
         var result = await reader.ReadAsync(path);
 
@@ -90,6 +90,14 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
             AppContext.BaseDirectory,
             "../../../../Scrabbler.ConsoleApp/Data/bonus-layout.json"));
         return BonusLayoutLoader.Load(path);
+    }
+
+    private static IReadOnlyDictionary<char, int> RealLetterValues()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../Scrabbler.ConsoleApp/Data/letter-values-pl.json"));
+        return LetterValuesLoader.Load(path);
     }
 
     private static string[] OccupiedCells(BoardReadResult result)
@@ -142,23 +150,7 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
             Origin = new PointF(col * Cell + Cell * 0.78f, row * Cell + Cell * 0.18f),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
-        }, Score(letter).ToString(), Color.Black));
-    }
-
-    private static int Score(char letter)
-    {
-        return letter switch
-        {
-            'A' => 1,
-            'B' => 3,
-            'D' => 2,
-            'K' => 2,
-            'L' => 2,
-            'O' => 1,
-            'R' => 1,
-            'T' => 2,
-            _ => 1
-        };
+        }, RealLetterValues()[letter].ToString(), Color.Black));
     }
 
     private static void DrawBonusLikeSquare(Image<Rgba32> image, int col, int row)

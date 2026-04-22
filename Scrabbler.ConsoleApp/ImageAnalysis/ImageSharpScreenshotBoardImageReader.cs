@@ -9,11 +9,13 @@ public sealed class ImageSharpScreenshotBoardImageReader : IBoardImageReader
 {
     private readonly BonusType[,] _bonusLayout;
     private readonly IReadOnlyDictionary<char, int> _letterValues;
+    private readonly string _letterSamplesPath;
 
-    public ImageSharpScreenshotBoardImageReader(BonusType[,] bonusLayout, IReadOnlyDictionary<char, int> letterValues)
+    public ImageSharpScreenshotBoardImageReader(BonusType[,] bonusLayout, IReadOnlyDictionary<char, int> letterValues, string letterSamplesPath)
     {
         _bonusLayout = bonusLayout;
         _letterValues = letterValues;
+        _letterSamplesPath = letterSamplesPath;
     }
 
     public Task<BoardReadResult> ReadAsync(string imagePath)
@@ -31,7 +33,7 @@ public sealed class ImageSharpScreenshotBoardImageReader : IBoardImageReader
             var cellHeight = boardBounds.Height / (double)Board.Size;
             var board = new Board(_bonusLayout);
             var reads = new List<CellRead>();
-            var recognizer = new TileLetterRecognizer(_letterValues);
+            var recognizer = new TileLetterRecognizer(_letterValues, _letterSamplesPath);
 
             for (var row = 0; row < Board.Size; row++)
             {
@@ -63,6 +65,11 @@ public sealed class ImageSharpScreenshotBoardImageReader : IBoardImageReader
 
     private static Rectangle GetCenteredSquare(int width, int height)
     {
+        if (width > height && width - height <= width * 0.02)
+        {
+            return new Rectangle(0, 0, width, width);
+        }
+
         var size = Math.Min(width, height);
         return new Rectangle((width - size) / 2, (height - size) / 2, size, size);
     }
@@ -87,9 +94,9 @@ public sealed class ImageSharpScreenshotBoardImageReader : IBoardImageReader
         var marginX = Math.Max(2, cellBounds.Width / 8);
         var marginY = Math.Max(2, cellBounds.Height / 8);
         var x1 = cellBounds.Left + marginX;
-        var x2 = cellBounds.Right - marginX;
+        var x2 = Math.Min(image.Width, cellBounds.Right - marginX);
         var y1 = cellBounds.Top + marginY;
-        var y2 = cellBounds.Bottom - marginY;
+        var y2 = Math.Min(image.Height, cellBounds.Bottom - marginY);
 
         var total = 0;
         var orange = 0;
@@ -103,6 +110,11 @@ public sealed class ImageSharpScreenshotBoardImageReader : IBoardImageReader
             {
                 var pixel = rowSpan[x];
                 total++;
+
+                if (TileLetterRecognizer.IsRedBadgePixel(pixel))
+                {
+                    continue;
+                }
 
                 if (pixel.R > 210 && pixel.G is >= 130 and <= 210 && pixel.B < 120)
                 {

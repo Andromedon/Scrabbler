@@ -60,7 +60,7 @@ console.WriteInfo($"Using board image: {selectedImage.FullName}");
 var bonusLayout = BonusLayoutLoader.Load(settings.BonusLayoutPath);
 var letterValues = LetterValuesLoader.Load(settings.LetterValuesPath);
 
-var imageReader = new ImageSharpScreenshotBoardImageReader(bonusLayout, letterValues);
+var imageReader = new ImageSharpScreenshotBoardImageReader(bonusLayout, letterValues, settings.LetterSamplesPath);
 BoardReadResult readResult;
 try
 {

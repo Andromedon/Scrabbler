@@ -12,6 +12,7 @@ public sealed record AppSettings(
     string GoogleDriveDownloadDirectory,
     string DictionaryPath,
     string LetterValuesPath,
+    string LetterSamplesPath,
     string BonusLayoutPath)
 {
     public static AppSettings From(IConfiguration configuration, string baseDirectory, string workingDirectory)
@@ -34,6 +35,7 @@ public sealed record AppSettings(
             Resolve(contentRoot, configuration["GoogleDriveDownloadDirectory"], "Input/Downloaded"),
             Resolve(contentRoot, configuration["DictionaryPath"], "Data/dictionary-pl.txt"),
             Resolve(contentRoot, configuration["LetterValuesPath"], "Data/letter-values-pl.json"),
+            Resolve(contentRoot, configuration["LetterSamplesPath"], "Data/letters-samples"),
             Resolve(contentRoot, configuration["BonusLayoutPath"], "Data/bonus-layout.json"));
     }
 

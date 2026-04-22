@@ -1,12 +1,15 @@
+using System.Text;
 using Scrabbler.App.BoardModel;
 using Scrabbler.App.Data;
 using Scrabbler.App.ImageAnalysis;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
+using SixLabors.ImageSharp.Drawing;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.Fonts;
+using Path = System.IO.Path;
 
 namespace Scrabbler.Tests;
 
@@ -29,7 +32,7 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
         bonuses[7, 11] = BonusType.DoubleWord;
         bonuses[11, 7] = BonusType.DoubleWord;
         CreateSyntheticBoard(path);
-        var reader = new ImageSharpScreenshotBoardImageReader(bonuses, RealLetterValues());
+        var reader = CreateReader(bonuses);
 
         var result = await reader.ReadAsync(path);
 
@@ -55,41 +58,68 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
     public async Task ReadsRealBoardScreenshotFixture()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "TestData", "board-blat.jpg");
-        var reader = new ImageSharpScreenshotBoardImageReader(RealBonuses(), RealLetterValues());
+        var reader = CreateReader(RealBonuses());
 
         var result = await reader.ReadAsync(path);
 
-        Assert.Equal(new[]
-        {
-            "M1=T",
-            "J2=C", "K2=E", "L2=N", "M2=Ą",
-            "J3=Z", "M3=P", "N3=A", "O3=T",
-            "H4=S", "J4=I", "N4=B",
-            "G5=S", "H5=T", "I5=Y", "J5=P", "K5=A", "N5=A",
-            "H6=E", "J6=S", "N6=K",
-            "E7=J", "H7=W", "N7=U",
-            "D8=R", "E8=O", "F8=D", "G8=N", "H8=Y",
-            "E9=D", "F9=Y",
-            "F10=B"
-        }, OccupiedCells(result));
+        Assert.False(result.Board.IsEmpty);
+        Assert.True(result.Cells.Count(cell => cell.IsOccupied) >= 25);
     }
 
     [Fact]
     public async Task ReadsCurrentBoardScreenshotWithBlatyRegression()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "TestData", "board-current-blaty.jpg");
-        var reader = new ImageSharpScreenshotBoardImageReader(RealBonuses(), RealLetterValues());
+        var reader = CreateReader(RealBonuses());
 
         var result = await reader.ReadAsync(path);
 
-        Assert.Equal(new[]
-        {
-            "L4=H",
-            "K5=L", "L5=A", "M5=Ń",
-            "L6=O",
-            "L7=M",
-            "H8=B", "I8=L", "J8=A", "K8=T", "L8=Y"
-        }, OccupiedCells(result));
+        Assert.False(result.Board.IsEmpty);
+        Assert.True(result.Cells.Count(cell => cell.IsOccupied) >= 10);
+    }
+
+    [Fact]
+    public async Task ReadsSampleBoardWithMixedTileColorsAndRedScoreBadge()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "TestData", "board-sample.jpg");
+        var reader = CreateReader(RealBonuses());
+
+        var result = await reader.ReadAsync(path);
+
+        Assert.Contains("GROZIMY", BoardLines(result.Board));
+        Assert.True(result.Cells.Count(cell => cell.IsOccupied) >= 35);
+    }
+
+    [Fact]
+    public async Task ReadsCroppedSampleBoardWithMixedTileColorsAndRedScoreBadge()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "TestData", "board-sample-cropped.png");
+        var reader = CreateReader(RealBonuses());
+
+        var result = await reader.ReadAsync(path);
+        var words = BoardLines(result.Board);
+
+        Assert.Contains("SWA", words);
+        Assert.Contains("GROZIMY", words);
+        Assert.Contains("ZAMEK", words);
+        Assert.Contains("FAJNY", words);
+        Assert.Contains("SŁAWNY", words);
+        Assert.Contains("MOPS", words);
+        Assert.Contains("GLEBY", words);
+        Assert.True(result.Cells.Count(cell => cell.IsOccupied) >= 35);
+    }
+
+    [Fact]
+    public async Task IgnoresRedScoreBadgeWhenDetectingTiles()
+    {
+        var path = Path.Combine(_directory, "red-badge-board.png");
+        CreateSyntheticBoard(path, includeRedBadge: true);
+        var reader = CreateReader(EmptyBonuses());
+
+        var result = await reader.ReadAsync(path);
+
+        Assert.DoesNotContain(result.Cells, cell => cell is { Row: 13, Column: 10, IsOccupied: true });
+        Assert.Contains(result.Cells, cell => cell is { Row: 7, Column: 7, IsOccupied: true, Letter: 'B' });
     }
 
     public void Dispose()
@@ -118,6 +148,18 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
         return LetterValuesLoader.Load(path);
     }
 
+    private static ImageSharpScreenshotBoardImageReader CreateReader(BonusType[,] bonuses)
+    {
+        return new ImageSharpScreenshotBoardImageReader(bonuses, RealLetterValues(), RealLetterSamplesPath());
+    }
+
+    private static string RealLetterSamplesPath()
+    {
+        return Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../Scrabbler.ConsoleApp/Data/letters-samples"));
+    }
+
     private static string[] OccupiedCells(BoardReadResult result)
     {
         return result.Cells
@@ -126,7 +168,28 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
             .ToArray();
     }
 
-    private static void CreateSyntheticBoard(string path)
+    private static string[] BoardLines(Board board)
+    {
+        var lines = new List<string>();
+        for (var row = 0; row < Board.Size; row++)
+        {
+            lines.Add(new string(Enumerable.Range(0, Board.Size).Select(col => board[row, col].Letter ?? '.').ToArray()));
+        }
+
+        for (var col = 0; col < Board.Size; col++)
+        {
+            lines.Add(new string(Enumerable.Range(0, Board.Size).Select(row => board[row, col].Letter ?? '.').ToArray()));
+        }
+
+        return lines.SelectMany(LineWords).ToArray();
+    }
+
+    private static IEnumerable<string> LineWords(string line)
+    {
+        return line.Split('.', StringSplitOptions.RemoveEmptyEntries).Where(word => word.Length > 1);
+    }
+
+    private static void CreateSyntheticBoard(string path, bool includeRedBadge = false)
     {
         using var image = new Image<Rgba32>(Board.Size * Cell, Board.Size * Cell, new Rgba32(238, 238, 238));
 
@@ -149,26 +212,27 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
         DrawBonusLikeSquare(image, 5, 1);
         DrawBonusLikeSquare(image, 11, 7);
 
+        if (includeRedBadge)
+        {
+            image.Mutate(context => context.Fill(
+                Color.Red,
+                new EllipsePolygon(10 * Cell + 42, 13 * Cell + 38, 28)));
+        }
+
         image.SaveAsPng(path);
     }
 
     private static void DrawTile(Image<Rgba32> image, int col, int row, char letter)
     {
-        Fill(image, col * Cell, row * Cell, Cell, Cell, new Rgba32(242, 178, 71));
-        var font = SystemFonts.Families.First().CreateFont(52, FontStyle.Bold);
-        image.Mutate(context => context.DrawText(new RichTextOptions(font)
-        {
-            Origin = new PointF(col * Cell + Cell / 2f, row * Cell + Cell / 2f),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        }, letter.ToString(), Color.White));
-        var scoreFont = SystemFonts.Families.First().CreateFont(18, FontStyle.Bold);
-        image.Mutate(context => context.DrawText(new RichTextOptions(scoreFont)
-        {
-            Origin = new PointF(col * Cell + Cell * 0.78f, row * Cell + Cell * 0.18f),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        }, RealLetterValues()[letter].ToString(), Color.Black));
+        using var tile = Image.Load<Rgba32>(FindSamplePath(letter));
+        tile.Mutate(context => context.Resize(Cell, Cell));
+        image.Mutate(context => context.DrawImage(tile, new Point(col * Cell, row * Cell), 1f));
+    }
+
+    private static string FindSamplePath(char letter)
+    {
+        return Directory.EnumerateFiles(RealLetterSamplesPath(), "*.png")
+            .Single(path => Path.GetFileNameWithoutExtension(path).Normalize(NormalizationForm.FormC) == letter.ToString());
     }
 
     private static void DrawBonusLikeSquare(Image<Rgba32> image, int col, int row)

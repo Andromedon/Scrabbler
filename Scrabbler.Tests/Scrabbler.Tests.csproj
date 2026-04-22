@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <None Include="TestData\board-blat.jpg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="TestData\board-current-blaty.jpg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

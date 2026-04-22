@@ -74,6 +74,24 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
         }, OccupiedCells(result));
     }
 
+    [Fact]
+    public async Task ReadsCurrentBoardScreenshotWithBlatyRegression()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "TestData", "board-current-blaty.jpg");
+        var reader = new ImageSharpScreenshotBoardImageReader(RealBonuses(), RealLetterValues());
+
+        var result = await reader.ReadAsync(path);
+
+        Assert.Equal(new[]
+        {
+            "L4=H",
+            "K5=L", "L5=A", "M5=Ń",
+            "L6=O",
+            "L7=M",
+            "H8=B", "I8=L", "J8=A", "K8=T", "L8=Y"
+        }, OccupiedCells(result));
+    }
+
     public void Dispose()
     {
         Directory.Delete(_directory, recursive: true);

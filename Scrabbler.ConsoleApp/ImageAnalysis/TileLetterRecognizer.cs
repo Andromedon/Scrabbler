@@ -153,6 +153,16 @@ public sealed class TileLetterRecognizer
         var left = Density(glyph, 6, 26, 2, 10);
         var right = Density(glyph, 6, 26, 22, 30);
 
+        if (CanUseHeuristicLetterOrWeak('B', scoreDigit) && CountEnclosedHoles(glyph) >= 2)
+        {
+            return 'B';
+        }
+
+        if (bestLetter == 'Y' && HasTopBar(glyph))
+        {
+            return 'T';
+        }
+
         if (CanUseHeuristicLetter('T', scoreDigit) && bestLetter == 'J' && top > 0.20 && bottom < 0.18)
         {
             return 'T';
@@ -196,17 +206,7 @@ public sealed class TileLetterRecognizer
 
     private static bool HasWideTopAccent(bool[,] glyph)
     {
-        var points = new List<Point>();
-        for (var y = 0; y < 7; y++)
-        {
-            for (var x = 0; x < TemplateSize; x++)
-            {
-                if (glyph[y, x])
-                {
-                    points.Add(new Point(x, y));
-                }
-            }
-        }
+        var points = GlyphPoints(glyph, yLimit: 7);
 
         if (points.Count == 0)
         {
@@ -218,20 +218,43 @@ public sealed class TileLetterRecognizer
         return width >= height * 1.4;
     }
 
+    private static List<Point> GlyphPoints(bool[,] glyph, int yLimit)
+    {
+        var points = new List<Point>();
+        for (var y = 0; y < Math.Min(TemplateSize, yLimit); y++)
+        {
+            for (var x = 0; x < TemplateSize; x++)
+            {
+                if (glyph[y, x])
+                {
+                    points.Add(new Point(x, y));
+                }
+            }
+        }
+
+        return points;
+    }
+
     private bool CanUseHeuristicLetter(char letter, DigitRecognitionResult scoreDigit)
     {
         return scoreDigit.CanConstrain(_letterScores) && _letterScores[letter] == scoreDigit.Digit;
     }
 
+    private bool CanUseHeuristicLetterOrWeak(char letter, DigitRecognitionResult scoreDigit)
+    {
+        return CanUseHeuristicLetter(letter, scoreDigit)
+            || (!scoreDigit.CanConstrain(_letterScores) && _letterScores[letter] == scoreDigit.WeakTwoOrThreeDigit);
+    }
+
     private static DigitRecognitionResult RecognizeScoreDigit(Image<Rgba32> image, Rectangle cellBounds)
     {
         var scoreBounds = new Rectangle(
-            cellBounds.Left + (int)(cellBounds.Width * 0.58),
+            cellBounds.Left + (int)(cellBounds.Width * 0.55),
             cellBounds.Top,
-            Math.Max(1, (int)(cellBounds.Width * 0.36)),
-            Math.Max(1, (int)(cellBounds.Height * 0.34)));
+            Math.Max(1, (int)(cellBounds.Width * 0.40)),
+            Math.Max(1, (int)(cellBounds.Height * 0.32)));
         var pixels = ExtractForegroundPixels(image, scoreBounds, ignoreTopRight: false, includeWhite: false);
-        var component = LargestComponent(pixels);
+        var component = ScoreDigitComponent(pixels);
         if (component.Count == 0)
         {
             return DigitRecognitionResult.None;
@@ -257,7 +280,13 @@ public sealed class TileLetterRecognizer
         }
 
         var confidence = Math.Clamp(bestScore * 0.8 + Math.Max(0, bestScore - secondScore) * 0.8, 0, 1);
-        var twoOrThree = TryRecognizeTwoOrThree(glyph);
+        var shapeDigit = TryRecognizeDigitByShape(glyph);
+        var twoOrThree = shapeDigit is 2 or 3 ? shapeDigit : TryRecognizeTwoOrThree(glyph);
+        if (shapeDigit is 1)
+        {
+            return new DigitRecognitionResult(shapeDigit.Value, Math.Max(confidence, ReliableDigitConfidence));
+        }
+
         if (bestDigit is 2 or 3 && twoOrThree is not null)
         {
             return new DigitRecognitionResult(twoOrThree.Value, Math.Max(confidence, ReliableDigitConfidence));
@@ -269,6 +298,56 @@ public sealed class TileLetterRecognizer
         }
 
         return new DigitRecognitionResult(null, 0, twoOrThree);
+    }
+
+    private static int? TryRecognizeDigitByShape(bool[,] glyph)
+    {
+        var points = GlyphPoints(glyph, yLimit: TemplateSize);
+        if (points.Count == 0)
+        {
+            return null;
+        }
+
+        var minX = points.Min(point => point.X);
+        var maxX = points.Max(point => point.X);
+        var minY = points.Min(point => point.Y);
+        var maxY = points.Max(point => point.Y);
+        var width = maxX - minX + 1;
+        var height = maxY - minY + 1;
+
+        if (width <= 16 && height >= 20)
+        {
+            return 1;
+        }
+
+        var upperLeft = Density(glyph, 4, 13, 2, 14);
+        var upperRight = Density(glyph, 4, 13, 18, 30);
+        var lowerLeft = Density(glyph, 18, 28, 2, 14);
+        var lowerRight = Density(glyph, 18, 28, 18, 30);
+        var middle = Density(glyph, 12, 19, 5, 27);
+        var bottom = Density(glyph, 24, 31, 4, 28);
+
+        if (middle <= 0.02 || bottom <= 0.03)
+        {
+            return null;
+        }
+
+        if (upperLeft > upperRight + 0.015 && lowerRight > lowerLeft + 0.005)
+        {
+            return 5;
+        }
+
+        if (lowerLeft > lowerRight + 0.01)
+        {
+            return 2;
+        }
+
+        if (lowerRight > lowerLeft + 0.01)
+        {
+            return 3;
+        }
+
+        return null;
     }
 
     private static int? TryRecognizeTwoOrThree(bool[,] glyph)
@@ -301,6 +380,45 @@ public sealed class TileLetterRecognizer
         return null;
     }
 
+    private static List<Point> ScoreDigitComponent(bool[,] pixels)
+    {
+        var height = pixels.GetLength(0);
+        var width = pixels.GetLength(1);
+        var components = ConnectedComponents(pixels);
+        if (components.Count == 0)
+        {
+            return new List<Point>();
+        }
+
+        return components
+            .Select(component => new
+            {
+                Component = component,
+                MinX = component.Min(point => point.X),
+                MaxX = component.Max(point => point.X),
+                MinY = component.Min(point => point.Y),
+                MaxY = component.Max(point => point.Y),
+                CenterX = component.Average(point => point.X),
+                CenterY = component.Average(point => point.Y)
+            })
+            .Where(candidate =>
+            {
+                var componentWidth = candidate.MaxX - candidate.MinX + 1;
+                var componentHeight = candidate.MaxY - candidate.MinY + 1;
+                var rightEnough = candidate.CenterX >= width * 0.32;
+                var highEnough = candidate.CenterY <= height * 0.82;
+                var notMainLetterFragment = componentWidth <= width * 0.62 && componentHeight <= height * 0.82;
+                var enoughInk = candidate.Component.Count >= 3;
+
+                return rightEnough && highEnough && notMainLetterFragment && enoughInk;
+            })
+            .OrderBy(candidate => candidate.CenterY)
+            .ThenByDescending(candidate => candidate.CenterX)
+            .ThenByDescending(candidate => candidate.Component.Count)
+            .Select(candidate => candidate.Component)
+            .FirstOrDefault() ?? LargestComponent(pixels);
+    }
+
     private static double Density(bool[,] glyph, int y1, int y2, int x1, int x2)
     {
         var count = 0;
@@ -322,14 +440,162 @@ public sealed class TileLetterRecognizer
 
     private static bool[,]? ExtractMainGlyph(Image<Rgba32> image, Rectangle cellBounds)
     {
-        var threshold = ExtractForegroundPixels(image, cellBounds, ignoreTopRight: true, includeWhite: true);
+        var threshold = ExtractForegroundPixels(image, cellBounds, ignoreTopRight: false, includeWhite: true);
+        RemoveScoreDigitComponents(threshold);
         var component = MainGlyphComponents(threshold);
         if (component.Count < 20)
         {
             return null;
         }
 
-        return NormalizeComponent(component);
+        var glyph = NormalizeComponent(component);
+        RemoveWideDetachedTopArtifact(glyph);
+        return glyph;
+    }
+
+    private static void RemoveWideDetachedTopArtifact(bool[,] glyph)
+    {
+        var firstInkRow = Enumerable.Range(0, TemplateSize).FirstOrDefault(y => RowHasInk(glyph, y), -1);
+        if (firstInkRow < 0)
+        {
+            return;
+        }
+
+        var blankRowAfterTop = Enumerable
+            .Range(firstInkRow + 1, Math.Min(10, TemplateSize - firstInkRow - 1))
+            .FirstOrDefault(y => !RowHasInk(glyph, y), -1);
+        if (blankRowAfterTop < 0)
+        {
+            return;
+        }
+
+        var topPoints = GlyphPoints(glyph, blankRowAfterTop);
+        if (topPoints.Count == 0)
+        {
+            return;
+        }
+
+        var topWidth = topPoints.Max(point => point.X) - topPoints.Min(point => point.X) + 1;
+        if (topWidth < TemplateSize * 0.55)
+        {
+            return;
+        }
+
+        for (var y = 0; y < blankRowAfterTop; y++)
+        {
+            for (var x = 0; x < TemplateSize; x++)
+            {
+                glyph[y, x] = false;
+            }
+        }
+    }
+
+    private static bool RowHasInk(bool[,] glyph, int y)
+    {
+        for (var x = 0; x < TemplateSize; x++)
+        {
+            if (glyph[y, x])
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int CountEnclosedHoles(bool[,] glyph)
+    {
+        var visited = new bool[TemplateSize, TemplateSize];
+        var holes = 0;
+
+        for (var y = 0; y < TemplateSize; y++)
+        {
+            for (var x = 0; x < TemplateSize; x++)
+            {
+                if (glyph[y, x] || visited[y, x])
+                {
+                    continue;
+                }
+
+                var (touchesBorder, count) = FloodFillBackground(glyph, visited, x, y);
+                if (!touchesBorder && count >= 6)
+                {
+                    holes++;
+                }
+            }
+        }
+
+        return holes;
+    }
+
+    private static bool HasTopBar(bool[,] glyph)
+    {
+        var firstInkRow = Enumerable.Range(0, TemplateSize).FirstOrDefault(y => RowHasInk(glyph, y), -1);
+        if (firstInkRow < 0)
+        {
+            return false;
+        }
+
+        for (var y = firstInkRow; y <= Math.Min(TemplateSize - 1, firstInkRow + 5); y++)
+        {
+            var start = -1;
+            var run = 0;
+            for (var x = 0; x < TemplateSize; x++)
+            {
+                if (glyph[y, x])
+                {
+                    if (run == 0)
+                    {
+                        start = x;
+                    }
+
+                    run++;
+                    var end = x;
+                    if (run >= 10 && start <= 12 && end >= 19)
+                    {
+                        return true;
+                    }
+                }
+                else
+                {
+                    run = 0;
+                    start = -1;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static (bool TouchesBorder, int Count) FloodFillBackground(bool[,] glyph, bool[,] visited, int startX, int startY)
+    {
+        var queue = new Queue<Point>();
+        queue.Enqueue(new Point(startX, startY));
+        visited[startY, startX] = true;
+        var touchesBorder = false;
+        var count = 0;
+
+        while (queue.Count > 0)
+        {
+            var point = queue.Dequeue();
+            count++;
+            touchesBorder |= point.X == 0 || point.Y == 0 || point.X == TemplateSize - 1 || point.Y == TemplateSize - 1;
+
+            foreach (var (dx, dy) in Directions)
+            {
+                var x = point.X + dx;
+                var y = point.Y + dy;
+                if (x < 0 || y < 0 || x >= TemplateSize || y >= TemplateSize || visited[y, x] || glyph[y, x])
+                {
+                    continue;
+                }
+
+                visited[y, x] = true;
+                queue.Enqueue(new Point(x, y));
+            }
+        }
+
+        return (touchesBorder, count);
     }
 
     private static bool[,] ExtractForegroundPixels(Image<Rgba32> image, Rectangle cellBounds, bool ignoreTopRight, bool includeWhite)
@@ -354,6 +620,35 @@ public sealed class TileLetterRecognizer
         }
 
         return pixels;
+    }
+
+    private static void RemoveScoreDigitComponents(bool[,] pixels)
+    {
+        var height = pixels.GetLength(0);
+        var width = pixels.GetLength(1);
+        foreach (var component in ConnectedComponents(pixels))
+        {
+            var minX = component.Min(point => point.X);
+            var maxX = component.Max(point => point.X);
+            var minY = component.Min(point => point.Y);
+            var maxY = component.Max(point => point.Y);
+            var componentWidth = maxX - minX + 1;
+            var componentHeight = maxY - minY + 1;
+            var centerX = component.Average(point => point.X);
+            var centerY = component.Average(point => point.Y);
+
+            var inScoreArea = centerX >= width * 0.68 && centerY <= height * 0.32;
+            var digitSized = componentWidth <= width * 0.20 && componentHeight <= height * 0.24;
+            if (!inScoreArea || !digitSized)
+            {
+                continue;
+            }
+
+            foreach (var point in component)
+            {
+                pixels[point.Y, point.X] = false;
+            }
+        }
     }
 
     private static List<Point> LargestComponent(bool[,] pixels)
@@ -391,7 +686,8 @@ public sealed class TileLetterRecognizer
             var componentMinX = component.Min(point => point.X);
             var componentMaxX = component.Max(point => point.X);
             var componentMaxY = component.Max(point => point.Y);
-            var overlapsGlyph = componentMaxX >= minX - 8 && componentMinX <= maxX + 8;
+            var componentCenterX = component.Average(point => point.X);
+            var overlapsGlyph = componentMaxX >= minX && componentMinX <= maxX && componentCenterX >= minX && componentCenterX <= maxX;
             var sitsAboveGlyph = componentMaxY <= minY + height * 0.35;
 
             if (overlapsGlyph && sitsAboveGlyph)

@@ -8,8 +8,6 @@ Scrabbler.ConsoleApp/Cache/
 # Local board screenshots
 Scrabbler.ConsoleApp/Input/*
 !Scrabbler.ConsoleApp/Input/.gitkeep
-Input/*
-!Input/.gitkeep
 
 # Local Google Drive OAuth credentials, tokens, and downloads
 Scrabbler.ConsoleApp/Secrets/

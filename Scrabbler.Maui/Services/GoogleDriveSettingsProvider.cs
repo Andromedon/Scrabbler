@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Xml.Linq;
 
 namespace Scrabbler.Maui.Services;
 
@@ -23,13 +24,84 @@ public sealed class GoogleDriveSettingsProvider : IGoogleDriveSettingsProvider
         }
         catch (FileNotFoundException)
         {
-            return string.Empty;
+            try
+            {
+                await using var stream = await FileSystem.OpenAppPackageFileAsync("console-appsettings.json");
+                using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                return document.RootElement.TryGetProperty("GoogleDriveFolderId", out var folder)
+                    ? folder.GetString() ?? string.Empty
+                    : string.Empty;
+            }
+            catch (FileNotFoundException)
+            {
+                return string.Empty;
+            }
         }
     }
 
     private static async Task<(string ClientId, string? ClientSecret, string RedirectUri)> ReadOAuthSettingsAsync(CancellationToken cancellationToken)
     {
-        await using var stream = await FileSystem.OpenAppPackageFileAsync("google-drive-client-secret.json");
+        try
+        {
+            await using var stream = await FileSystem.OpenAppPackageFileAsync("google-drive-ios-client.plist");
+            return await ParseIosOAuthSettingsAsync(stream, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+        }
+
+        try
+        {
+            await using var stream = await FileSystem.OpenAppPackageFileAsync("google-drive-client-secret.json");
+            return await ParseOAuthSettingsAsync(stream, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            throw new FileNotFoundException(
+                "Google Drive OAuth settings are missing. Add Scrabbler.Maui/Resources/Raw/google-drive-ios-client.plist or google-drive-client-secret.json before building the app.");
+        }
+    }
+
+    private static async Task<(string ClientId, string? ClientSecret, string RedirectUri)> ParseIosOAuthSettingsAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(stream);
+        var xml = await reader.ReadToEndAsync(cancellationToken);
+        var document = XDocument.Parse(xml);
+        var dict = document.Root?
+            .Element("dict")
+            ?.Elements()
+            .ToArray() ?? Array.Empty<XElement>();
+
+        string? ValueFor(string key)
+        {
+            for (var i = 0; i < dict.Length - 1; i++)
+            {
+                if (dict[i].Name.LocalName == "key" && string.Equals(dict[i].Value, key, StringComparison.Ordinal))
+                {
+                    return dict[i + 1].Value;
+                }
+            }
+
+            return null;
+        }
+
+        var clientId = ValueFor("CLIENT_ID") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            throw new InvalidOperationException("Google iOS OAuth plist is missing CLIENT_ID.");
+        }
+
+        var reversedClientId = ValueFor("REVERSED_CLIENT_ID") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(reversedClientId))
+        {
+            throw new InvalidOperationException("Google iOS OAuth plist is missing REVERSED_CLIENT_ID.");
+        }
+
+        return (clientId, null, $"{reversedClientId}:/oauth2redirect");
+    }
+
+    private static async Task<(string ClientId, string? ClientSecret, string RedirectUri)> ParseOAuthSettingsAsync(Stream stream, CancellationToken cancellationToken)
+    {
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
         var root = document.RootElement;
         var section = TryGetSection(root, "installed")
@@ -71,6 +143,6 @@ public sealed class GoogleDriveSettingsProvider : IGoogleDriveSettingsProvider
             }
         }
 
-        return "pl.scrabbler.app:/oauth2redirect";
+        return "com.googleusercontent.apps.11447514840-baio9i12tr0ie8rvr31n2bvpavl8l7kd:/oauth2redirect";
     }
 }

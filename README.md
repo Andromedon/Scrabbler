@@ -65,7 +65,7 @@ For Google Drive on iOS, add ignored local files:
 
 Use `Scrabbler.Maui/Resources/Raw/google-drive-settings.sample.json` as the folder-id template. The MAUI app reuses the same newest-supported-image selection logic as the console app. For realistic solving, keep `Scrabbler.ConsoleApp/Data/dictionary-pl.txt` locally; the MAUI project bundles it when present and falls back to the tiny sample dictionary otherwise.
 
-The default iOS OAuth callback is `pl.scrabbler.app:/oauth2redirect`; add that redirect URI to the Google OAuth client used for the MAUI app.
+For Google Drive on iOS, prefer the Google-generated iOS plist in `Scrabbler.Maui/Resources/Raw/google-drive-ios-client.plist`. The app uses that file's `REVERSED_CLIENT_ID` as the callback scheme, for example `com.googleusercontent.apps.11447514840-baio9i12tr0ie8rvr31n2bvpavl8l7kd:/oauth2redirect`.
 
 ## Corrections
 

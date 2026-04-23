@@ -23,6 +23,11 @@
     <MauiIcon Include="Resources/AppIcon/appicon.png" />
     <MauiAsset Include="..\Scrabbler.Assets\Data\**\*.*" LogicalName="Data/%(RecursiveDir)%(Filename)%(Extension)" />
     <MauiAsset Include="..\Scrabbler.ConsoleApp\Data\dictionary-pl.txt" LogicalName="Data/dictionary-pl.txt" Condition="Exists('..\Scrabbler.ConsoleApp\Data\dictionary-pl.txt')" />
+    <MauiAsset Include="Resources\Raw\google-drive-settings.json" LogicalName="google-drive-settings.json" Condition="Exists('Resources\Raw\google-drive-settings.json')" />
+    <MauiAsset Include="..\Scrabbler.ConsoleApp\appsettings.json" LogicalName="console-appsettings.json" Condition="Exists('..\Scrabbler.ConsoleApp\appsettings.json')" />
+    <MauiAsset Include="Resources\Raw\google-drive-ios-client.plist" LogicalName="google-drive-ios-client.plist" Condition="Exists('Resources\Raw\google-drive-ios-client.plist')" />
+    <MauiAsset Include="Resources\Raw\google-drive-client-secret.json" LogicalName="google-drive-client-secret.json" Condition="Exists('Resources\Raw\google-drive-client-secret.json')" />
+    <MauiAsset Include="..\Scrabbler.ConsoleApp\Secrets\google-drive-client-secret.json" LogicalName="google-drive-client-secret.json" Condition="!Exists('Resources\Raw\google-drive-client-secret.json') and Exists('..\Scrabbler.ConsoleApp\Secrets\google-drive-client-secret.json')" />
   </ItemGroup>
 
   <ItemGroup>

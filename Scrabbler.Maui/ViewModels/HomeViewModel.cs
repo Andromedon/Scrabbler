@@ -64,6 +64,7 @@ public sealed class HomeViewModel : ObservableObject
             }
 
             Status = "Reading board...";
+            await Task.Yield();
             await _workflow.ReadBoardAsync(image.FullName);
             Status = string.Empty;
             await _navigation.PushAsync(_services.GetRequiredService<BoardCorrectionPage>());

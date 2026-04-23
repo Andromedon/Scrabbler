@@ -2,7 +2,7 @@ using Scrabbler.Input;
 
 namespace Scrabbler.App.ImageAnalysis;
 
-public sealed class FixedDirectoryInputImageProvider : IInputImageProvider
+public sealed class FixedDirectoryInputImageProvider : Scrabbler.Input.IInputImageProvider
 {
     private readonly string _directory;
 

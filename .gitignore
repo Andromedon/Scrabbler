@@ -12,6 +12,9 @@ Scrabbler.ConsoleApp/Input/*
 # Local Google Drive OAuth credentials, tokens, and downloads
 Scrabbler.ConsoleApp/Secrets/
 Scrabbler.ConsoleApp/Input/Downloaded/
+Scrabbler.Maui/Resources/Raw/google-drive-client-secret.json
+Scrabbler.Maui/Resources/Raw/google-drive-settings.json
+Scrabbler.Maui/Resources/Raw/Data/dictionary-pl.txt
 
 # Full local dictionary; use the sample file as the tracked template.
 Scrabbler.ConsoleApp/Data/dictionary-pl.txt

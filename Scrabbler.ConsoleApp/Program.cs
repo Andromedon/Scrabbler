@@ -6,6 +6,7 @@ using Scrabbler.App.ImageAnalysis;
 using Scrabbler.Domain.BoardModel;
 using Scrabbler.Data;
 using Scrabbler.ImageAnalysis;
+using Scrabbler.Input;
 using Scrabbler.Solver;
 
 var baseDirectory = AppContext.BaseDirectory;

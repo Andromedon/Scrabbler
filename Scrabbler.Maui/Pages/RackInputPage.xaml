@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Scrabbler.Maui.Pages.RackInputPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Title="Rack">
+    <VerticalStackLayout Padding="24" Spacing="14">
+        <Entry
+            Placeholder="Rack letters (? for blank)"
+            Text="{Binding RackText}" />
+        <Button Text="Solve" Command="{Binding SolveCommand}" />
+        <Label Text="{Binding Message}" TextColor="DarkRed" LineBreakMode="WordWrap" />
+    </VerticalStackLayout>
+</ContentPage>

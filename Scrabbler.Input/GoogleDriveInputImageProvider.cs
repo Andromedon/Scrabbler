@@ -1,6 +1,4 @@
-using Scrabbler.Input;
-
-namespace Scrabbler.App.ImageAnalysis;
+namespace Scrabbler.Input;
 
 public sealed class GoogleDriveInputImageProvider : IInputImageProvider
 {

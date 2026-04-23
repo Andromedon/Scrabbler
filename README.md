@@ -25,6 +25,7 @@ The app picks the newest image in the fixed input directory, detects likely occu
 - `Scrabbler.Input` contains reusable input/file type and Google Drive abstractions.
 - `Scrabbler.Assets` contains shared JSON configuration data and OCR letter samples.
 - `Scrabbler.ConsoleApp` is the current executable host. It keeps console UI, configuration, desktop Google Drive/local input implementations, and local ignored files.
+- `Scrabbler.Maui` is the first iOS .NET MAUI host. It keeps the console-like flow with gallery/Drive image input, text board corrections, rack entry, and solver results.
 
 ## Google Drive Input
 
@@ -47,6 +48,25 @@ The app can also download the newest board screenshot from a Google Drive folder
 
 The first Google Drive run opens a browser for Google consent. Later runs reuse the cached token from `Scrabbler.ConsoleApp/Secrets/google-token`. Credentials, tokens, local screenshots, downloaded Drive images, and the full dictionary are ignored by git.
 
+## iOS MAUI App
+
+The mobile app intentionally follows the console flow: Home, board correction, rack input, results, then Finish back to Home.
+
+```bash
+dotnet build Scrabbler.Maui/Scrabbler.Maui.csproj -f net10.0-ios
+```
+
+If MAUI is not installed locally, run `dotnet workload install maui` first.
+
+For Google Drive on iOS, add ignored local files:
+
+- `Scrabbler.Maui/Resources/Raw/google-drive-client-secret.json`
+- `Scrabbler.Maui/Resources/Raw/google-drive-settings.json`
+
+Use `Scrabbler.Maui/Resources/Raw/google-drive-settings.sample.json` as the folder-id template. The MAUI app reuses the same newest-supported-image selection logic as the console app. For realistic solving, keep `Scrabbler.ConsoleApp/Data/dictionary-pl.txt` locally; the MAUI project bundles it when present and falls back to the tiny sample dictionary otherwise.
+
+The default iOS OAuth callback is `pl.scrabbler.app:/oauth2redirect`; add that redirect URI to the Google OAuth client used for the MAUI app.
+
 ## Corrections
 
 Coordinates use columns `A` through `O` and rows `1` through `15`.
@@ -60,7 +80,7 @@ H8=.
 H8=Ł?, I8=A, J8=.
 ```
 
-`?` on the rack means a blank tile. In corrections, `Ł?` means the board tile shows `Ł` but scores zero.
+`?` on the rack means a blank tile. In corrections, `Ł?` means the board tile shows `Ł` but scores zero. A bare correction value of `?` clears an uncertain detected cell because the solver needs concrete board letters.
 
 ## Notes
 

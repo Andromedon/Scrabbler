@@ -1,4 +1,5 @@
 using Scrabbler.App.Configuration;
+using Scrabbler.Input;
 
 namespace Scrabbler.App.ImageAnalysis;
 

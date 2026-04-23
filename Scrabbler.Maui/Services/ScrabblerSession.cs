@@ -1,0 +1,30 @@
+using Scrabbler.Domain.BoardModel;
+using Scrabbler.ImageAnalysis;
+using Scrabbler.Solver;
+
+namespace Scrabbler.Maui.Services;
+
+public sealed class ScrabblerSession
+{
+    public string? ImagePath { get; set; }
+
+    public Board? Board { get; set; }
+
+    public IReadOnlyList<CellRead> Cells { get; set; } = Array.Empty<CellRead>();
+
+    public Rack? Rack { get; set; }
+
+    public IReadOnlyList<Move> Moves { get; set; } = Array.Empty<Move>();
+
+    public string? AssetWarning { get; set; }
+
+    public void Clear()
+    {
+        ImagePath = null;
+        Board = null;
+        Cells = Array.Empty<CellRead>();
+        Rack = null;
+        Moves = Array.Empty<Move>();
+        AssetWarning = null;
+    }
+}

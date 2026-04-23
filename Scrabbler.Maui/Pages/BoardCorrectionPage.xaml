@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Scrabbler.Maui.Pages.BoardCorrectionPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Title="Correct Board">
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="12">
+            <Label Text="{Binding DetectedCellsText}" LineBreakMode="WordWrap" />
+            <ScrollView Orientation="Both" HeightRequest="310">
+                <Label Text="{Binding BoardText}" FontFamily="Menlo" FontSize="13" LineBreakMode="NoWrap" />
+            </ScrollView>
+            <Entry
+                Placeholder="A1=Ł, H8=?, J10=."
+                Text="{Binding Corrections}" />
+            <HorizontalStackLayout Spacing="12">
+                <Button Text="Apply" Command="{Binding ApplyCommand}" />
+                <Button Text="Continue" Command="{Binding ContinueCommand}" />
+            </HorizontalStackLayout>
+            <Label Text="{Binding Message}" TextColor="DarkRed" LineBreakMode="WordWrap" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

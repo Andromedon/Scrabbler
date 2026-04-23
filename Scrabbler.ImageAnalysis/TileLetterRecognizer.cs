@@ -65,17 +65,9 @@ public sealed class TileLetterRecognizer
     {
         if (scoreDigit.IsReliable && scoreDigit.Digit is not null)
         {
-            if (TrySelectNhByScore(candidates, scoreDigit, out var nhSelection))
-            {
-                return nhSelection;
-            }
-
             if (_letterScores[candidates[0].Letter] == scoreDigit.Digit.Value)
             {
-                return new SelectedLetter(
-                    candidates[0].Letter,
-                    candidates[0].Score,
-                    candidates.ElementAtOrDefault(1)?.Score ?? 0);
+                return Select(candidates, candidates[0]);
             }
 
             var matchingScore = candidates
@@ -86,63 +78,60 @@ public sealed class TileLetterRecognizer
 
             if (matchingScore.Length > 0)
             {
-                var closeEnough = scoreDigit.Confidence >= 0.45 || scoreDigit.Digit == 1;
-                if (closeEnough && matchingScore[0].Score >= candidates[0].Score * 0.90)
+                var threshold = ScoreMatchThreshold(candidates[0], matchingScore[0], scoreDigit);
+                if (matchingScore[0].Score >= candidates[0].Score * threshold)
                 {
-                    return new SelectedLetter(
-                        matchingScore[0].Letter,
-                        matchingScore[0].Score,
-                        matchingScore.ElementAtOrDefault(1)?.Score ?? 0);
+                    return Select(candidates, matchingScore[0]);
                 }
             }
         }
 
-        return new SelectedLetter(
-            candidates[0].Letter,
-            candidates[0].Score,
-            candidates.ElementAtOrDefault(1)?.Score ?? 0);
+        return Select(candidates, candidates[0]);
     }
 
-    private bool TrySelectNhByScore(
-        IReadOnlyList<LetterCandidate> candidates,
-        DigitRecognitionResult scoreDigit,
-        out SelectedLetter selection)
+    private double ScoreMatchThreshold(
+        LetterCandidate topCandidate,
+        LetterCandidate scoreMatchedCandidate,
+        DigitRecognitionResult scoreDigit)
     {
-        selection = default!;
-        if (scoreDigit.Digit is null
-            || scoreDigit.Digit != _letterScores['N'] && scoreDigit.Digit != _letterScores['H']
-            || candidates[0].Letter is not ('N' or 'H'))
+        if (IsNhPair(topCandidate.Letter, scoreMatchedCandidate.Letter))
         {
-            return false;
+            return 0.82;
         }
 
-        var nCandidate = candidates.FirstOrDefault(candidate => candidate.Letter == 'N');
-        var hCandidate = candidates.FirstOrDefault(candidate => candidate.Letter == 'H');
-        if (nCandidate is null || hCandidate is null)
+        if (scoreDigit.Confidence >= 0.55)
         {
-            return false;
+            return 0.86;
         }
 
-        var scoreMatchedCandidate = _letterScores['N'] == scoreDigit.Digit.Value ? nCandidate : hCandidate;
-        if (scoreMatchedCandidate.Score < candidates[0].Score * 0.85)
-        {
-            return false;
-        }
+        return 0.90;
+    }
 
-        selection = new SelectedLetter(
-            scoreMatchedCandidate.Letter,
-            scoreMatchedCandidate.Score,
-            candidates.ElementAtOrDefault(1)?.Score ?? 0);
-        return true;
+    private static bool IsNhPair(char first, char second)
+    {
+        return first is 'N' or 'H' && second is 'N' or 'H' && first != second;
+    }
+
+    private static SelectedLetter Select(IReadOnlyList<LetterCandidate> candidates, LetterCandidate selected)
+    {
+        var secondScore = candidates
+            .Where(candidate => candidate.Letter != selected.Letter)
+            .Select(candidate => candidate.Score)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return new SelectedLetter(selected.Letter, selected.Score, secondScore);
     }
 
     private float CalculateConfidence(double score, double secondScore, DigitRecognitionResult scoreDigit, char letter)
     {
         var margin = Math.Max(0, score - secondScore);
         var confidence = score * 0.75 + margin * 0.9;
-        if (scoreDigit.IsReliable && scoreDigit.Digit == _letterScores[letter])
+        if (scoreDigit.IsReliable && scoreDigit.Digit is not null)
         {
-            confidence += 0.12;
+            confidence += scoreDigit.Digit == _letterScores[letter]
+                ? 0.14
+                : -0.10;
         }
 
         return (float)Math.Clamp(confidence, 0, 1);
@@ -323,7 +312,7 @@ public sealed class TileLetterRecognizer
 
     private static bool[,]? ExtractScoreMask(Image<Rgba32> image, Rectangle scoreBounds)
     {
-        var pixels = ExtractForegroundPixels(image, scoreBounds, includeLight: false);
+        var pixels = ExtractForegroundPixels(image, scoreBounds, includeLight: true);
         var component = ScoreDigitComponent(pixels);
         return component.Count < 3 ? null : NormalizeComponent(component);
     }

@@ -65,6 +65,28 @@ public sealed class TileLetterRecognizerTests
         Assert.Equal('H', result.Letter);
     }
 
+    [Fact]
+    public void UsesScoreDigitToResolveHShapeWithNScore()
+    {
+        using var image = CreateSampleTileWithDifferentScoreDigit('H', 'N');
+        var recognizer = new TileLetterRecognizer(RealLetterValues(), RealLetterSamplesPath());
+
+        var result = recognizer.Recognize(image, new Rectangle(0, 0, image.Width, image.Height));
+
+        Assert.Equal('N', result.Letter);
+    }
+
+    [Fact]
+    public void RecognizesWhiteGlyphPWithWhiteScoreDigit()
+    {
+        using var image = CreateWhiteGlyphTile('P');
+        var recognizer = new TileLetterRecognizer(RealLetterValues(), RealLetterSamplesPath());
+
+        var result = recognizer.Recognize(image, new Rectangle(0, 0, image.Width, image.Height));
+
+        Assert.Equal('P', result.Letter);
+    }
+
     public static IEnumerable<object[]> PolishLetters()
     {
         return PolishAlphabet.Letters.Select(letter => new object[] { letter });
@@ -135,6 +157,27 @@ public sealed class TileLetterRecognizerTests
         return image;
     }
 
+    private static Image<Rgba32> CreateWhiteGlyphTile(char letter)
+    {
+        using var source = Image.Load<Rgba32>(FindSamplePath(letter));
+        var image = source.Clone();
+        var bounds = Inset(new Rectangle(0, 0, image.Width, image.Height), 0.035);
+
+        for (var y = bounds.Top; y < bounds.Bottom; y++)
+        {
+            var row = image.DangerousGetPixelRowMemory(y).Span;
+            for (var x = bounds.Left; x < bounds.Right; x++)
+            {
+                if (IsDarkInk(row[x]) && HasOrangeNeighbor(source, x, y, bounds))
+                {
+                    row[x] = new Rgba32(255, 255, 255);
+                }
+            }
+        }
+
+        return image;
+    }
+
     private static Rectangle AllLettersScreenshotCellBounds(char letter)
     {
         const int tile = 36;
@@ -166,6 +209,35 @@ public sealed class TileLetterRecognizerTests
                 targetRow[targetPoint.X + x] = sourceRow[sourceBounds.Left + x];
             }
         }
+    }
+
+    private static bool HasOrangeNeighbor(Image<Rgba32> image, int x, int y, Rectangle bounds)
+    {
+        for (var yy = Math.Max(bounds.Top, y - 2); yy < Math.Min(bounds.Bottom, y + 3); yy++)
+        {
+            var row = image.DangerousGetPixelRowMemory(yy).Span;
+            for (var xx = Math.Max(bounds.Left, x - 2); xx < Math.Min(bounds.Right, x + 3); xx++)
+            {
+                if (IsOrangeLike(row[xx]))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsDarkInk(Rgba32 pixel)
+    {
+        var max = Math.Max(pixel.R, Math.Max(pixel.G, pixel.B));
+        var min = Math.Min(pixel.R, Math.Min(pixel.G, pixel.B));
+        return max < 190 && max - min < 90;
+    }
+
+    private static bool IsOrangeLike(Rgba32 pixel)
+    {
+        return pixel.R > 190 && pixel.G is >= 120 and <= 210 && pixel.B < 130;
     }
 
     private static Rectangle Inset(Rectangle bounds, double ratio)

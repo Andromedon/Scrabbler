@@ -12,6 +12,7 @@ public sealed class BoardCorrectionViewModel : ObservableObject
     private readonly ScrabblerWorkflowService _workflow;
     private readonly NavigationService _navigation;
     private string _boardText = string.Empty;
+    private IReadOnlyList<string> _boardLines = Array.Empty<string>();
     private string _detectedCellsText = string.Empty;
     private string _corrections = string.Empty;
     private string _message = string.Empty;
@@ -31,6 +32,12 @@ public sealed class BoardCorrectionViewModel : ObservableObject
     {
         get => _boardText;
         private set => SetProperty(ref _boardText, value);
+    }
+
+    public IReadOnlyList<string> BoardLines
+    {
+        get => _boardLines;
+        private set => SetProperty(ref _boardLines, value);
     }
 
     public string DetectedCellsText
@@ -109,10 +116,22 @@ public sealed class BoardCorrectionViewModel : ObservableObject
         {
             Message = _session.AssetWarning;
         }
+
+        var boardRead = _session.Performance.BoardRead;
+        if (boardRead is not null)
+        {
+            Message = string.IsNullOrWhiteSpace(Message)
+                ? $"Board read: {boardRead.Value.TotalSeconds:0.00}s"
+                : $"{Message}{Environment.NewLine}Board read: {boardRead.Value.TotalSeconds:0.00}s";
+        }
     }
 
     private void RefreshBoard()
     {
         BoardText = _session.Board?.Render() ?? string.Empty;
+        BoardLines = BoardText
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .ToArray();
     }
 }

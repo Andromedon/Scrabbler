@@ -14,6 +14,10 @@ public partial class App : Application
 
     protected override Window CreateWindow(IActivationState? activationState)
     {
-        return new Window(new NavigationPage(_homePage));
+        return new Window(new NavigationPage(_homePage)
+        {
+            BarBackgroundColor = Colors.White,
+            BarTextColor = Colors.Black
+        });
     }
 }

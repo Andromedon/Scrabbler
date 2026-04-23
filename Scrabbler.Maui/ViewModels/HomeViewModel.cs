@@ -13,6 +13,8 @@ public sealed class HomeViewModel : ObservableObject
     private readonly ScrabblerWorkflowService _workflow;
     private readonly NavigationService _navigation;
     private string _status = string.Empty;
+    private string _dictionaryStatus = string.Empty;
+    private bool _isBusy;
 
     public HomeViewModel(
         IServiceProvider services,
@@ -28,6 +30,8 @@ public sealed class HomeViewModel : ObservableObject
         _navigation = navigation;
         LoadFromGalleryCommand = new AsyncCommand(LoadFromGalleryAsync);
         DownloadFromGoogleDriveCommand = new AsyncCommand(DownloadFromGoogleDriveAsync);
+        WarmDictionaryCommand = new AsyncCommand(WarmDictionaryAsync);
+        _ = RefreshDictionaryStatusAsync();
     }
 
     public string Status
@@ -36,9 +40,23 @@ public sealed class HomeViewModel : ObservableObject
         private set => SetProperty(ref _status, value);
     }
 
+    public string DictionaryStatus
+    {
+        get => _dictionaryStatus;
+        private set => SetProperty(ref _dictionaryStatus, value);
+    }
+
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set => SetProperty(ref _isBusy, value);
+    }
+
     public ICommand LoadFromGalleryCommand { get; }
 
     public ICommand DownloadFromGoogleDriveCommand { get; }
+
+    public ICommand WarmDictionaryCommand { get; }
 
     private async Task LoadFromGalleryAsync()
     {
@@ -55,6 +73,7 @@ public sealed class HomeViewModel : ObservableObject
     {
         try
         {
+            IsBusy = true;
             Status = "Loading image...";
             var image = await getImage();
             if (image is null)
@@ -73,6 +92,37 @@ public sealed class HomeViewModel : ObservableObject
         {
             Status = ex.Message;
         }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
+    private async Task WarmDictionaryAsync()
+    {
+        try
+        {
+            IsBusy = true;
+            Status = "Loading dictionary...";
+            await _workflow.WarmDictionaryAsync();
+            Status = string.Empty;
+            await RefreshDictionaryStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Status = ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private async Task RefreshDictionaryStatusAsync()
+    {
+        var cached = await _workflow.IsDictionaryCachedAsync();
+        DictionaryStatus = cached
+            ? "Dictionary cache is available."
+            : "Dictionary cache is not built yet.";
+    }
 }

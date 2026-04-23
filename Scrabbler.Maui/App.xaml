@@ -5,6 +5,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
     <Application.Resources>
         <ResourceDictionary>
+            <Style TargetType="ContentPage">
+                <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=White, Dark=#111111}" />
+            </Style>
             <Style TargetType="Button">
                 <Setter Property="CornerRadius" Value="6" />
                 <Setter Property="Padding" Value="14,10" />

@@ -4,9 +4,14 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     Title="Scrabbler">
-    <VerticalStackLayout Padding="24" Spacing="16" VerticalOptions="Center">
-        <Button Text="Load from Gallery" Command="{Binding LoadFromGalleryCommand}" />
-        <Button Text="Download from Google Drive" Command="{Binding DownloadFromGoogleDriveCommand}" />
-        <Label Text="{Binding Status}" TextColor="DarkRed" LineBreakMode="WordWrap" />
-    </VerticalStackLayout>
+    <Grid Padding="24" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+        <VerticalStackLayout Grid.Row="1" Spacing="16" VerticalOptions="Center">
+            <Button Text="Load from Gallery" Command="{Binding LoadFromGalleryCommand}" />
+            <Button Text="Download from Google Drive" Command="{Binding DownloadFromGoogleDriveCommand}" />
+            <Button Text="Load Dictionary" Command="{Binding WarmDictionaryCommand}" />
+            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+            <Label Text="{Binding DictionaryStatus}" LineBreakMode="WordWrap" />
+            <Label Text="{Binding Status}" TextColor="DarkRed" LineBreakMode="WordWrap" />
+        </VerticalStackLayout>
+    </Grid>
 </ContentPage>

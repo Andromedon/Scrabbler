@@ -6,6 +6,13 @@ namespace Scrabbler.Maui.Services;
 
 public sealed class ScrabblerSession
 {
+    public sealed record PerformanceSnapshot(
+        TimeSpan? BoardRead = null,
+        TimeSpan? DictionaryLoad = null,
+        TimeSpan? Solve = null,
+        bool DictionaryCacheWarm = false,
+        bool DictionaryReady = false);
+
     public string? ImagePath { get; set; }
 
     public Board? Board { get; set; }
@@ -18,6 +25,8 @@ public sealed class ScrabblerSession
 
     public string? AssetWarning { get; set; }
 
+    public PerformanceSnapshot Performance { get; set; } = new();
+
     public void Clear()
     {
         ImagePath = null;
@@ -26,5 +35,6 @@ public sealed class ScrabblerSession
         Rack = null;
         Moves = Array.Empty<Move>();
         AssetWarning = null;
+        Performance = new();
     }
 }

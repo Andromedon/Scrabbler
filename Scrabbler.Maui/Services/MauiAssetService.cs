@@ -76,6 +76,11 @@ public sealed class MauiAssetService
     {
         try
         {
+            if (File.Exists(destinationPath))
+            {
+                return true;
+            }
+
             await using var source = await FileSystem.OpenAppPackageFileAsync(packagePath);
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
             await using var target = File.Create(destinationPath);

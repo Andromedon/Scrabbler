@@ -12,6 +12,7 @@ public sealed class RackInputViewModel : ObservableObject
     private readonly NavigationService _navigation;
     private string _rackText = string.Empty;
     private string _message = string.Empty;
+    private bool _isSolving;
 
     public RackInputViewModel(IServiceProvider services, ScrabblerWorkflowService workflow, NavigationService navigation)
     {
@@ -33,14 +34,23 @@ public sealed class RackInputViewModel : ObservableObject
         private set => SetProperty(ref _message, value);
     }
 
+    public bool IsSolving
+    {
+        get => _isSolving;
+        private set => SetProperty(ref _isSolving, value);
+    }
+
     public ICommand SolveCommand { get; }
 
     private async Task SolveAsync()
     {
         try
         {
-            _workflow.Solve(RackText);
-            Message = string.Empty;
+            IsSolving = true;
+            Message = "Solving...";
+            await Task.Yield();
+            await _workflow.SolveAsync(RackText);
+            Message = BuildTimingMessage();
             await _navigation.PushAsync(_services.GetRequiredService<ResultsPage>());
         }
         catch (ArgumentException ex)
@@ -51,5 +61,31 @@ public sealed class RackInputViewModel : ObservableObject
         {
             Message = ex.Message;
         }
+        finally
+        {
+            IsSolving = false;
+        }
+    }
+
+    private string BuildTimingMessage()
+    {
+        var session = _services.GetRequiredService<ScrabblerSession>();
+        var parts = new List<string>();
+        if (session.Performance.DictionaryLoad is not null)
+        {
+            var cacheLabel = session.Performance.DictionaryCacheWarm ? "warm cache" : "cold cache";
+            parts.Add($"Dictionary: {session.Performance.DictionaryLoad.Value.TotalSeconds:0.00}s ({cacheLabel})");
+        }
+        else if (session.Performance.DictionaryReady)
+        {
+            parts.Add("Dictionary: already loaded");
+        }
+
+        if (session.Performance.Solve is not null)
+        {
+            parts.Add($"Solve: {session.Performance.Solve.Value.TotalSeconds:0.00}s");
+        }
+
+        return string.Join(Environment.NewLine, parts);
     }
 }

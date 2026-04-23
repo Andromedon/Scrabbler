@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <MauiIcon Include="Resources/AppIcon/appicon.png" />
+    <MauiSplashScreen Include="Resources/Splash/splash.png" Color="#FFFFFF" BaseSize="512,512" />
     <MauiAsset Include="..\Scrabbler.Assets\Data\**\*.*" LogicalName="Data/%(RecursiveDir)%(Filename)%(Extension)" />
     <MauiAsset Include="..\Scrabbler.ConsoleApp\Data\dictionary-pl.txt" LogicalName="Data/dictionary-pl.txt" Condition="Exists('..\Scrabbler.ConsoleApp\Data\dictionary-pl.txt')" />
     <MauiAsset Include="Resources\Raw\google-drive-settings.json" LogicalName="google-drive-settings.json" Condition="Exists('Resources\Raw\google-drive-settings.json')" />

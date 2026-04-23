@@ -1,8 +1,8 @@
 using System.Text;
-using Scrabbler.App.BoardModel;
-using Scrabbler.App.Data;
+using Scrabbler.Domain.BoardModel;
+using Scrabbler.Data;
 
-namespace Scrabbler.App.Solver;
+namespace Scrabbler.Solver;
 
 public sealed class MoveSolver : IMoveSolver
 {

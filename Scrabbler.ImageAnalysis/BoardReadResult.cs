@@ -1,6 +1,6 @@
-using Scrabbler.App.BoardModel;
+using Scrabbler.Domain.BoardModel;
 
-namespace Scrabbler.App.ImageAnalysis;
+namespace Scrabbler.ImageAnalysis;
 
 public sealed record CellRead(int Row, int Column, char? Letter, float Confidence, bool IsOccupied = false);
 

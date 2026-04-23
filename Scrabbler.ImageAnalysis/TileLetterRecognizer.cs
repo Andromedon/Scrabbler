@@ -1,10 +1,10 @@
 using System.Text;
-using Scrabbler.App.BoardModel;
+using Scrabbler.Domain.BoardModel;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace Scrabbler.App.ImageAnalysis;
+namespace Scrabbler.ImageAnalysis;
 
 public sealed class TileLetterRecognizer
 {
@@ -65,6 +65,11 @@ public sealed class TileLetterRecognizer
     {
         if (scoreDigit.IsReliable && scoreDigit.Digit is not null)
         {
+            if (TrySelectNhByScore(candidates, scoreDigit, out var nhSelection))
+            {
+                return nhSelection;
+            }
+
             if (_letterScores[candidates[0].Letter] == scoreDigit.Digit.Value)
             {
                 return new SelectedLetter(
@@ -96,6 +101,39 @@ public sealed class TileLetterRecognizer
             candidates[0].Letter,
             candidates[0].Score,
             candidates.ElementAtOrDefault(1)?.Score ?? 0);
+    }
+
+    private bool TrySelectNhByScore(
+        IReadOnlyList<LetterCandidate> candidates,
+        DigitRecognitionResult scoreDigit,
+        out SelectedLetter selection)
+    {
+        selection = default!;
+        if (scoreDigit.Digit is null
+            || scoreDigit.Digit != _letterScores['N'] && scoreDigit.Digit != _letterScores['H']
+            || candidates[0].Letter is not ('N' or 'H'))
+        {
+            return false;
+        }
+
+        var nCandidate = candidates.FirstOrDefault(candidate => candidate.Letter == 'N');
+        var hCandidate = candidates.FirstOrDefault(candidate => candidate.Letter == 'H');
+        if (nCandidate is null || hCandidate is null)
+        {
+            return false;
+        }
+
+        var scoreMatchedCandidate = _letterScores['N'] == scoreDigit.Digit.Value ? nCandidate : hCandidate;
+        if (scoreMatchedCandidate.Score < candidates[0].Score * 0.85)
+        {
+            return false;
+        }
+
+        selection = new SelectedLetter(
+            scoreMatchedCandidate.Letter,
+            scoreMatchedCandidate.Score,
+            candidates.ElementAtOrDefault(1)?.Score ?? 0);
+        return true;
     }
 
     private float CalculateConfidence(double score, double secondScore, DigitRecognitionResult scoreDigit, char letter)
@@ -194,7 +232,7 @@ public sealed class TileLetterRecognizer
         }
 
         var shapeDigit = TryRecognizeDigitByShape(glyph);
-        if (shapeDigit is 1)
+        if (shapeDigit is not null)
         {
             return new DigitRecognitionResult(shapeDigit.Value, 0.35, true);
         }
@@ -233,7 +271,45 @@ public sealed class TileLetterRecognizer
 
         var width = points.Max(point => point.X) - points.Min(point => point.X) + 1;
         var height = points.Max(point => point.Y) - points.Min(point => point.Y) + 1;
-        return width <= 12 && height >= 18 ? 1 : null;
+        if (width <= 12 && height >= 18)
+        {
+            return 1;
+        }
+
+        var middle = Density(glyph, 12, 19, 5, 27);
+        var bottom = Density(glyph, 24, 31, 4, 28);
+        var lowerLeft = Density(glyph, 17, 28, 2, 13);
+        var lowerRight = Density(glyph, 17, 28, 19, 30);
+        var upperLeft = Density(glyph, 4, 13, 2, 14);
+        var upperRight = Density(glyph, 4, 13, 18, 30);
+        if (middle >= 0.015
+            && bottom >= 0.03
+            && upperLeft + upperRight >= 0.32
+            && (lowerRight > lowerLeft + 0.01 || lowerLeft < 0.02 && lowerRight > 0.005))
+        {
+            return 3;
+        }
+
+        return null;
+    }
+
+    private static double Density(bool[,] glyph, int y1, int y2, int x1, int x2)
+    {
+        var count = 0;
+        var total = 0;
+        for (var y = Math.Max(0, y1); y <= Math.Min(MaskSize - 1, y2); y++)
+        {
+            for (var x = Math.Max(0, x1); x <= Math.Min(MaskSize - 1, x2); x++)
+            {
+                total++;
+                if (glyph[y, x])
+                {
+                    count++;
+                }
+            }
+        }
+
+        return total == 0 ? 0 : count / (double)total;
     }
 
     private static Rectangle GetScoreBounds(Rectangle cellBounds)
@@ -384,7 +460,7 @@ public sealed class TileLetterRecognizer
                 return candidate.CenterX >= width * 0.25
                     && candidate.CenterY <= height * 0.90
                     && componentWidth <= width * 0.75
-                    && componentHeight <= height * 0.90;
+                    && componentHeight <= height * 0.75;
             })
             .OrderByDescending(candidate => candidate.CenterX)
             .ThenBy(candidate => candidate.CenterY)

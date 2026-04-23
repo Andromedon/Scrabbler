@@ -1,7 +1,7 @@
 using System.Text;
-using Scrabbler.App.BoardModel;
-using Scrabbler.App.Data;
-using Scrabbler.App.ImageAnalysis;
+using Scrabbler.Domain.BoardModel;
+using Scrabbler.Data;
+using Scrabbler.ImageAnalysis;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.Drawing;
@@ -136,7 +136,7 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
     {
         var path = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
-            "../../../../Scrabbler.ConsoleApp/Data/bonus-layout.json"));
+            "../../../../Scrabbler.Assets/Data/bonus-layout.json"));
         return BonusLayoutLoader.Load(path);
     }
 
@@ -144,7 +144,7 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
     {
         var path = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
-            "../../../../Scrabbler.ConsoleApp/Data/letter-values-pl.json"));
+            "../../../../Scrabbler.Assets/Data/letter-values-pl.json"));
         return LetterValuesLoader.Load(path);
     }
 
@@ -157,7 +157,7 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
     {
         return Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
-            "../../../../Scrabbler.ConsoleApp/Data/letters-samples"));
+            "../../../../Scrabbler.Assets/Data/letters-samples"));
     }
 
     private static string[] OccupiedCells(BoardReadResult result)

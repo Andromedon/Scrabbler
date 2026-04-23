@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Scrabbler.App.BoardModel;
+using Scrabbler.Domain.BoardModel;
 
-namespace Scrabbler.App.Data;
+namespace Scrabbler.Data;
 
 public static class LetterValuesLoader
 {

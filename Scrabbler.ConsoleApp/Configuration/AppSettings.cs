@@ -4,6 +4,7 @@ namespace Scrabbler.App.Configuration;
 
 public sealed record AppSettings(
     string ContentRoot,
+    string AssetsRoot,
     InputSource InputSource,
     string InputDirectory,
     string GoogleDriveFolderId,
@@ -18,6 +19,7 @@ public sealed record AppSettings(
     public static AppSettings From(IConfiguration configuration, string baseDirectory, string workingDirectory)
     {
         var contentRoot = FindContentRoot(workingDirectory, baseDirectory);
+        var assetsRoot = FindAssetsRoot(contentRoot);
 
         static string Resolve(string baseDirectory, string? value, string fallback)
         {
@@ -27,6 +29,7 @@ public sealed record AppSettings(
 
         return new AppSettings(
             contentRoot,
+            assetsRoot,
             ParseInputSource(configuration["InputSource"]),
             Resolve(contentRoot, configuration["InputDirectory"], "Input"),
             configuration["GoogleDriveFolderId"] ?? string.Empty,
@@ -34,9 +37,9 @@ public sealed record AppSettings(
             Resolve(contentRoot, configuration["GoogleDriveTokenDirectory"], "Secrets/google-token"),
             Resolve(contentRoot, configuration["GoogleDriveDownloadDirectory"], "Input/Downloaded"),
             Resolve(contentRoot, configuration["DictionaryPath"], "Data/dictionary-pl.txt"),
-            Resolve(contentRoot, configuration["LetterValuesPath"], "Data/letter-values-pl.json"),
-            Resolve(contentRoot, configuration["LetterSamplesPath"], "Data/letters-samples"),
-            Resolve(contentRoot, configuration["BonusLayoutPath"], "Data/bonus-layout.json"));
+            Resolve(assetsRoot, configuration["LetterValuesPath"], "Data/letter-values-pl.json"),
+            Resolve(assetsRoot, configuration["LetterSamplesPath"], "Data/letters-samples"),
+            Resolve(assetsRoot, configuration["BonusLayoutPath"], "Data/bonus-layout.json"));
     }
 
     private static InputSource ParseInputSource(string? value)
@@ -79,6 +82,14 @@ public sealed record AppSettings(
         }
 
         return Path.GetFullPath(workingDirectory);
+    }
+
+    private static string FindAssetsRoot(string contentRoot)
+    {
+        var siblingAssets = Path.GetFullPath(Path.Combine(contentRoot, "..", "Scrabbler.Assets"));
+        return Directory.Exists(siblingAssets)
+            ? siblingAssets
+            : contentRoot;
     }
 }
 

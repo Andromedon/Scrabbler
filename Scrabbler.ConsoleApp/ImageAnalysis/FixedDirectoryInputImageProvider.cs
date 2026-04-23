@@ -1,3 +1,5 @@
+using Scrabbler.Input;
+
 namespace Scrabbler.App.ImageAnalysis;
 
 public sealed class FixedDirectoryInputImageProvider : IInputImageProvider

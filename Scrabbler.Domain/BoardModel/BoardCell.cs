@@ -1,4 +1,4 @@
-namespace Scrabbler.App.BoardModel;
+namespace Scrabbler.Domain.BoardModel;
 
 public sealed record BoardCell(int Row, int Column, char? Letter, bool IsBlank, BonusType Bonus)
 {

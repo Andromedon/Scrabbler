@@ -1,5 +1,5 @@
-using Scrabbler.App.BoardModel;
-using Scrabbler.App.Data;
+using Scrabbler.Domain.BoardModel;
+using Scrabbler.Data;
 
 namespace Scrabbler.Tests;
 

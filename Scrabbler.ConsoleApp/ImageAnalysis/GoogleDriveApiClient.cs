@@ -2,6 +2,7 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
 using Google.Apis.Util.Store;
+using Scrabbler.Input;
 using DriveFile = Google.Apis.Drive.v3.Data.File;
 
 namespace Scrabbler.App.ImageAnalysis;

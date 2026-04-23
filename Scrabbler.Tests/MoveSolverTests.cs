@@ -1,6 +1,6 @@
-using Scrabbler.App.BoardModel;
-using Scrabbler.App.Data;
-using Scrabbler.App.Solver;
+using Scrabbler.Domain.BoardModel;
+using Scrabbler.Data;
+using Scrabbler.Solver;
 
 namespace Scrabbler.Tests;
 

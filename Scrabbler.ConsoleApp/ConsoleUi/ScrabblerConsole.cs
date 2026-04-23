@@ -1,6 +1,6 @@
-using Scrabbler.App.BoardModel;
-using Scrabbler.App.ImageAnalysis;
-using Scrabbler.App.Solver;
+using Scrabbler.Domain.BoardModel;
+using Scrabbler.ImageAnalysis;
+using Scrabbler.Solver;
 
 namespace Scrabbler.App.ConsoleUi;
 

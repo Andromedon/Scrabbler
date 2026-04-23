@@ -1,4 +1,4 @@
-namespace Scrabbler.App.BoardModel;
+namespace Scrabbler.Domain.BoardModel;
 
 public enum Direction
 {

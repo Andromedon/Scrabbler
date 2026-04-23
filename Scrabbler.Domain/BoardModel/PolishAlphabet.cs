@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Scrabbler.App.BoardModel;
+namespace Scrabbler.Domain.BoardModel;
 
 public static class PolishAlphabet
 {

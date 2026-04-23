@@ -1,9 +1,9 @@
-using Scrabbler.App.BoardModel;
+using Scrabbler.Domain.BoardModel;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace Scrabbler.App.ImageAnalysis;
+namespace Scrabbler.ImageAnalysis;
 
 public sealed class ImageSharpScreenshotBoardImageReader : IBoardImageReader
 {

@@ -1,4 +1,4 @@
-using Scrabbler.App.Data;
+using Scrabbler.Data;
 
 namespace Scrabbler.Tests;
 

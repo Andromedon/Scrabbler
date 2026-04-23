@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Scrabbler.App.Configuration;
 using Scrabbler.App.ImageAnalysis;
+using Scrabbler.Input;
 
 namespace Scrabbler.Tests;
 

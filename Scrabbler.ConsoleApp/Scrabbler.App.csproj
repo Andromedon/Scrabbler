@@ -12,9 +12,15 @@
     <PackageReference Include="Google.Apis.Core" Version="1.73.0" />
     <PackageReference Include="Google.Apis.Drive.v3" Version="1.73.0.4112" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.7" />
-    <PackageReference Include="SixLabors.Fonts" Version="2.1.3" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
-    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scrabbler.Data\Scrabbler.Data.csproj" />
+    <ProjectReference Include="..\Scrabbler.Domain\Scrabbler.Domain.csproj" />
+    <ProjectReference Include="..\Scrabbler.ImageAnalysis\Scrabbler.ImageAnalysis.csproj" />
+    <ProjectReference Include="..\Scrabbler.Input\Scrabbler.Input.csproj" />
+    <ProjectReference Include="..\Scrabbler.Solver\Scrabbler.Solver.csproj" />
   </ItemGroup>
 
   <ItemGroup>

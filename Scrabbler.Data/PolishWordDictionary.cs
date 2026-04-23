@@ -1,8 +1,8 @@
-using Scrabbler.App.BoardModel;
+using Scrabbler.Domain.BoardModel;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace Scrabbler.App.Data;
+namespace Scrabbler.Data;
 
 public sealed class PolishWordDictionary : IWordDictionary
 {

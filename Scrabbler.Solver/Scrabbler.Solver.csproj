@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scrabbler.Data\Scrabbler.Data.csproj" />
+    <ProjectReference Include="..\Scrabbler.Domain\Scrabbler.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

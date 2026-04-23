@@ -1,6 +1,6 @@
-using Scrabbler.App.BoardModel;
+using Scrabbler.Domain.BoardModel;
 
-namespace Scrabbler.App.Solver;
+namespace Scrabbler.Solver;
 
 public sealed record Move(
     string Word,

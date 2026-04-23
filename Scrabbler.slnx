@@ -1,4 +1,10 @@
 <Solution>
+  <Project Path="Scrabbler.Assets/Scrabbler.Assets.csproj" />
+  <Project Path="Scrabbler.Data/Scrabbler.Data.csproj" />
+  <Project Path="Scrabbler.Domain/Scrabbler.Domain.csproj" />
   <Project Path="Scrabbler.ConsoleApp/Scrabbler.App.csproj" />
+  <Project Path="Scrabbler.ImageAnalysis/Scrabbler.ImageAnalysis.csproj" />
+  <Project Path="Scrabbler.Input/Scrabbler.Input.csproj" />
+  <Project Path="Scrabbler.Solver/Scrabbler.Solver.csproj" />
   <Project Path="Scrabbler.Tests/Scrabbler.Tests.csproj" />
 </Solution>

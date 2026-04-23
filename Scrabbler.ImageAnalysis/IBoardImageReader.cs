@@ -1,4 +1,4 @@
-namespace Scrabbler.App.ImageAnalysis;
+namespace Scrabbler.ImageAnalysis;
 
 public interface IBoardImageReader
 {

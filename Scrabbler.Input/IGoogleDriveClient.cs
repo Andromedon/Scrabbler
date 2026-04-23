@@ -1,4 +1,4 @@
-namespace Scrabbler.App.ImageAnalysis;
+namespace Scrabbler.Input;
 
 public interface IGoogleDriveClient
 {

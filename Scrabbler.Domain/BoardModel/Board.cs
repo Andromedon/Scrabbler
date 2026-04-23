@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Scrabbler.App.BoardModel;
+namespace Scrabbler.Domain.BoardModel;
 
 public sealed class Board
 {

@@ -1,9 +1,12 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Scrabbler.App.Configuration;
 using Scrabbler.App.ConsoleUi;
-using Scrabbler.App.Data;
 using Scrabbler.App.ImageAnalysis;
-using Scrabbler.App.Solver;
+using Scrabbler.Domain.BoardModel;
+using Scrabbler.Data;
+using Scrabbler.ImageAnalysis;
+using Scrabbler.Solver;
 
 var baseDirectory = AppContext.BaseDirectory;
 var workingDirectory = Directory.GetCurrentDirectory();
@@ -15,7 +18,26 @@ var configuration = new ConfigurationBuilder()
     .Build();
 
 var settings = AppSettings.From(configuration, baseDirectory, workingDirectory);
-var console = new ScrabblerConsole();
+var services = new ServiceCollection()
+    .AddSingleton(settings)
+    .AddSingleton<ScrabblerConsole>()
+    .AddSingleton<IInputImageProvider>(_ => InputImageProviderFactory.Create(settings))
+    .AddSingleton(_ => BonusLayoutLoader.Load(settings.BonusLayoutPath))
+    .AddSingleton<IReadOnlyDictionary<char, int>>(_ => LetterValuesLoader.Load(settings.LetterValuesPath))
+    .AddSingleton<IBoardImageReader>(provider => new ImageSharpScreenshotBoardImageReader(
+        provider.GetRequiredService<BonusType[,]>(),
+        provider.GetRequiredService<IReadOnlyDictionary<char, int>>(),
+        settings.LetterSamplesPath))
+    .AddSingleton<IWordDictionary>(provider => PolishWordDictionary.Load(
+        settings.DictionaryPath,
+        Path.Combine(settings.ContentRoot, "Cache"),
+        provider.GetRequiredService<ScrabblerConsole>().WriteInfo))
+    .AddSingleton<IMoveSolver>(provider => new MoveSolver(
+        provider.GetRequiredService<IWordDictionary>(),
+        provider.GetRequiredService<IReadOnlyDictionary<char, int>>()))
+    .BuildServiceProvider();
+
+var console = services.GetRequiredService<ScrabblerConsole>();
 
 if (settings.InputSource == InputSource.Local)
 {
@@ -29,7 +51,7 @@ else
     console.WriteInfo($"Google Drive download directory: {settings.GoogleDriveDownloadDirectory}");
 }
 
-var inputProvider = InputImageProviderFactory.Create(settings);
+var inputProvider = services.GetRequiredService<IInputImageProvider>();
 FileInfo? selectedImage;
 try
 {
@@ -57,10 +79,7 @@ if (selectedImage is null)
 
 console.WriteInfo($"Using board image: {selectedImage.FullName}");
 
-var bonusLayout = BonusLayoutLoader.Load(settings.BonusLayoutPath);
-var letterValues = LetterValuesLoader.Load(settings.LetterValuesPath);
-
-var imageReader = new ImageSharpScreenshotBoardImageReader(bonusLayout, letterValues, settings.LetterSamplesPath);
+var imageReader = services.GetRequiredService<IBoardImageReader>();
 BoardReadResult readResult;
 try
 {
@@ -81,11 +100,7 @@ console.WriteDetectedOccupiedCells(readResult.Cells);
 board = console.ApplyBoardCorrections(board);
 
 var rack = console.ReadRack();
-var dictionary = PolishWordDictionary.Load(
-    settings.DictionaryPath,
-    Path.Combine(settings.ContentRoot, "Cache"),
-    console.WriteInfo);
-var solver = new MoveSolver(dictionary, letterValues);
+var solver = services.GetRequiredService<IMoveSolver>();
 var moves = solver.FindBestMoves(board, rack, limit: 10);
 
 if (moves.Count == 0)

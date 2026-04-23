@@ -1,4 +1,4 @@
-namespace Scrabbler.App.Data;
+namespace Scrabbler.Data;
 
 public interface IWordDictionary
 {

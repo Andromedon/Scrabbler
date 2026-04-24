@@ -117,6 +117,22 @@ public sealed class BoardCorrectionViewModel : ObservableObject
             Message = _session.AssetWarning;
         }
 
+        var assetPreparation = _session.Performance.AssetPreparation;
+        if (assetPreparation is not null)
+        {
+            Message = string.IsNullOrWhiteSpace(Message)
+                ? $"Assets: {assetPreparation.Value.TotalSeconds:0.00}s"
+                : $"{Message}{Environment.NewLine}Assets: {assetPreparation.Value.TotalSeconds:0.00}s";
+        }
+
+        var imageImport = _session.Performance.ImageImport;
+        if (imageImport is not null)
+        {
+            Message = string.IsNullOrWhiteSpace(Message)
+                ? $"Image import: {imageImport.Value.TotalSeconds:0.00}s"
+                : $"{Message}{Environment.NewLine}Image import: {imageImport.Value.TotalSeconds:0.00}s";
+        }
+
         var boardRead = _session.Performance.BoardRead;
         if (boardRead is not null)
         {

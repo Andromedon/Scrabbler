@@ -39,6 +39,7 @@ public sealed class DictionaryCacheTests : IDisposable
 
         Assert.True(dictionary.Contains("ALA"));
         Assert.Contains(messages, message => message.StartsWith("Loading processed dictionary cache", StringComparison.Ordinal));
+        Assert.Single(Directory.GetFiles(cacheDirectory, "*.bin"));
     }
 
     [Fact]
@@ -55,6 +56,19 @@ public sealed class DictionaryCacheTests : IDisposable
 
         Assert.True(dictionary.Contains("KOT"));
         Assert.Contains(messages, message => message.StartsWith("Building processed dictionary cache", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LoadWritesBinaryCacheFile()
+    {
+        var cacheDirectory = Path.Combine(_directory, "cache");
+        var dictionaryPath = WriteDictionary("ALA", "KOT");
+
+        _ = PolishWordDictionary.Load(dictionaryPath, cacheDirectory);
+
+        var files = Directory.GetFiles(cacheDirectory);
+        Assert.Contains(files, file => file.EndsWith(".bin", StringComparison.Ordinal));
+        Assert.DoesNotContain(files, file => file.EndsWith(".json", StringComparison.Ordinal));
     }
 
     public void Dispose()

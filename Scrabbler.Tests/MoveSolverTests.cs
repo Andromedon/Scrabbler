@@ -90,6 +90,19 @@ public sealed class MoveSolverTests
         Assert.Contains(best.PlacedTiles, tile => tile is { Letter: 'Ż', IsBlank: true });
     }
 
+    [Fact]
+    public void ReturnsOnlyRequestedNumberOfBestMovesInStableOrder()
+    {
+        var solver = SolverForWords("KOT", "TOK", "OK", "TO");
+        var board = EmptyBoardWithCenterDoubleWord();
+
+        var moves = solver.FindBestMoves(board, Rack.Parse("KOT"), 2);
+
+        Assert.Equal(2, moves.Count);
+        Assert.True(moves[0].Score >= moves[1].Score);
+        Assert.True(string.CompareOrdinal(moves[0].Word, moves[1].Word) <= 0 || moves[0].Score > moves[1].Score);
+    }
+
     private static MoveSolver SolverForWords(params string[] words)
     {
         return new MoveSolver(PolishWordDictionary.FromWords(words), Values());

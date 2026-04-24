@@ -1,22 +1,20 @@
-using Scrabbler.Domain.BoardModel;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using Scrabbler.Domain.BoardModel;
 
 namespace Scrabbler.Data;
 
 public sealed class PolishWordDictionary : IWordDictionary
 {
+    private const int CacheVersion = 1;
     private readonly HashSet<string> _words;
     private readonly Lazy<HashSet<string>> _prefixes;
 
-    private PolishWordDictionary(HashSet<string> words)
+    private PolishWordDictionary(HashSet<string> words, IReadOnlyDictionary<int, IReadOnlyList<string>> wordsByLength)
     {
         _words = words;
-        WordsByLength = words
-            .GroupBy(word => word.Length)
-            .ToDictionary(
-                group => group.Key,
-                group => (IReadOnlyList<string>)group.Order(StringComparer.Ordinal).ToArray());
+        WordsByLength = wordsByLength;
         _prefixes = new Lazy<HashSet<string>>(BuildPrefixes);
     }
 
@@ -35,23 +33,25 @@ public sealed class PolishWordDictionary : IWordDictionary
 
         var source = new FileInfo(path);
         var cachePath = GetCachePath(cacheDirectory, source.FullName);
-        var cached = TryReadCache(cachePath, source, reportStatus);
-        var words = cached ?? BuildAndWriteCache(path, source, cachePath, reportStatus);
+        var cached = TryReadBinaryCache(cachePath, source, reportStatus)
+            ?? TryReadLegacyJsonCache(GetLegacyJsonCachePath(cacheDirectory, source.FullName), source, cachePath, reportStatus);
+        var snapshot = cached ?? BuildAndWriteCache(path, source, cachePath, reportStatus);
 
-        if (words.Count == 0)
+        if (snapshot.Words.Count == 0)
         {
             throw new InvalidOperationException("Dictionary did not contain any valid Polish words with length 2..15.");
         }
 
-        return new PolishWordDictionary(words);
+        return Create(snapshot.Words, snapshot.WordsByLength);
     }
 
     public static PolishWordDictionary FromWords(IEnumerable<string> words)
     {
-        return new PolishWordDictionary(words
+        var normalized = words
             .Select(PolishAlphabet.NormalizeWord)
             .Where(IsUsableWord)
-            .ToHashSet(StringComparer.Ordinal));
+            .ToHashSet(StringComparer.Ordinal);
+        return Create(normalized, GroupWordsByLength(normalized));
     }
 
     public bool Contains(string word)
@@ -64,7 +64,12 @@ public sealed class PolishWordDictionary : IWordDictionary
         return _prefixes.Value.Contains(PolishAlphabet.NormalizeWord(prefix));
     }
 
-    private static HashSet<string>? TryReadCache(string cachePath, FileInfo source, Action<string>? reportStatus)
+    private static PolishWordDictionary Create(HashSet<string> words, IReadOnlyDictionary<int, IReadOnlyList<string>> wordsByLength)
+    {
+        return new PolishWordDictionary(words, wordsByLength);
+    }
+
+    private static DictionarySnapshot? TryReadBinaryCache(string cachePath, FileInfo source, Action<string>? reportStatus)
     {
         if (!File.Exists(cachePath))
         {
@@ -73,7 +78,62 @@ public sealed class PolishWordDictionary : IWordDictionary
 
         try
         {
-            var cache = JsonSerializer.Deserialize<DictionaryCache>(File.ReadAllText(cachePath));
+            using var stream = File.OpenRead(cachePath);
+            using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: false);
+
+            if (reader.ReadInt32() != CacheVersion)
+            {
+                return null;
+            }
+
+            var sourceFullPath = reader.ReadString();
+            var sourceLength = reader.ReadInt64();
+            var sourceLastWriteUtcTicks = reader.ReadInt64();
+
+            if (!StringComparer.Ordinal.Equals(sourceFullPath, source.FullName)
+                || sourceLength != source.Length
+                || sourceLastWriteUtcTicks != source.LastWriteTimeUtc.Ticks)
+            {
+                return null;
+            }
+
+            var wordsByLength = new Dictionary<int, IReadOnlyList<string>>();
+            var words = new HashSet<string>(StringComparer.Ordinal);
+            var groupCount = reader.ReadInt32();
+            for (var groupIndex = 0; groupIndex < groupCount; groupIndex++)
+            {
+                var length = reader.ReadInt32();
+                var wordCount = reader.ReadInt32();
+                var groupWords = new string[wordCount];
+                for (var wordIndex = 0; wordIndex < wordCount; wordIndex++)
+                {
+                    var word = reader.ReadString();
+                    groupWords[wordIndex] = word;
+                    words.Add(word);
+                }
+
+                wordsByLength[length] = groupWords;
+            }
+
+            reportStatus?.Invoke($"Loading processed dictionary cache: {cachePath}");
+            return new DictionarySnapshot(words, wordsByLength);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static DictionarySnapshot? TryReadLegacyJsonCache(string legacyCachePath, FileInfo source, string binaryCachePath, Action<string>? reportStatus)
+    {
+        if (!File.Exists(legacyCachePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var cache = JsonSerializer.Deserialize<LegacyDictionaryCache>(File.ReadAllText(legacyCachePath));
             if (cache is null
                 || !StringComparer.Ordinal.Equals(cache.SourceFullPath, source.FullName)
                 || cache.SourceLength != source.Length
@@ -82,8 +142,12 @@ public sealed class PolishWordDictionary : IWordDictionary
                 return null;
             }
 
-            reportStatus?.Invoke($"Loading processed dictionary cache: {cachePath}");
-            return cache.Words.ToHashSet(StringComparer.Ordinal);
+            reportStatus?.Invoke($"Loading legacy processed dictionary cache: {legacyCachePath}");
+            var words = cache.Words.ToHashSet(StringComparer.Ordinal);
+            var snapshot = new DictionarySnapshot(words, GroupWordsByLength(words));
+            WriteBinaryCache(binaryCachePath, source, snapshot);
+            reportStatus?.Invoke($"Saved processed dictionary cache: {binaryCachePath}");
+            return snapshot;
         }
         catch
         {
@@ -91,7 +155,7 @@ public sealed class PolishWordDictionary : IWordDictionary
         }
     }
 
-    private static HashSet<string> BuildAndWriteCache(string path, FileInfo source, string cachePath, Action<string>? reportStatus)
+    private static DictionarySnapshot BuildAndWriteCache(string path, FileInfo source, string cachePath, Action<string>? reportStatus)
     {
         reportStatus?.Invoke("Building processed dictionary cache. This can take a while the first time.");
         var words = File.ReadLines(path)
@@ -99,15 +163,44 @@ public sealed class PolishWordDictionary : IWordDictionary
             .Select(PolishAlphabet.NormalizeWord)
             .Where(IsUsableWord)
             .ToHashSet(StringComparer.Ordinal);
+        var wordsByLength = GroupWordsByLength(words);
 
-        var cache = new DictionaryCache(
-            source.FullName,
-            source.Length,
-            source.LastWriteTimeUtc.Ticks,
-            words.Order(StringComparer.Ordinal).ToArray());
-        File.WriteAllText(cachePath, JsonSerializer.Serialize(cache));
+        WriteBinaryCache(cachePath, source, new DictionarySnapshot(words, wordsByLength));
+
         reportStatus?.Invoke($"Saved processed dictionary cache: {cachePath}");
-        return words;
+        return new DictionarySnapshot(words, wordsByLength);
+    }
+
+    private static void WriteBinaryCache(string cachePath, FileInfo source, DictionarySnapshot snapshot)
+    {
+        using (var stream = File.Create(cachePath))
+        using (var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: false))
+        {
+            writer.Write(CacheVersion);
+            writer.Write(source.FullName);
+            writer.Write(source.Length);
+            writer.Write(source.LastWriteTimeUtc.Ticks);
+            writer.Write(snapshot.WordsByLength.Count);
+
+            foreach (var pair in snapshot.WordsByLength.OrderBy(pair => pair.Key))
+            {
+                writer.Write(pair.Key);
+                writer.Write(pair.Value.Count);
+                foreach (var word in pair.Value)
+                {
+                    writer.Write(word);
+                }
+            }
+        }
+    }
+
+    private static IReadOnlyDictionary<int, IReadOnlyList<string>> GroupWordsByLength(IEnumerable<string> words)
+    {
+        return words
+            .GroupBy(word => word.Length)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)group.Order(StringComparer.Ordinal).ToArray());
     }
 
     private HashSet<string> BuildPrefixes()
@@ -131,9 +224,17 @@ public sealed class PolishWordDictionary : IWordDictionary
 
     private static string GetCachePath(string cacheDirectory, string dictionaryPath)
     {
-        var hash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(dictionaryPath)))[..16];
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(dictionaryPath)))[..16];
+        return Path.Combine(cacheDirectory, $"dictionary-{hash}.bin");
+    }
+
+    private static string GetLegacyJsonCachePath(string cacheDirectory, string dictionaryPath)
+    {
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(dictionaryPath)))[..16];
         return Path.Combine(cacheDirectory, $"dictionary-{hash}.json");
     }
 
-    private sealed record DictionaryCache(string SourceFullPath, long SourceLength, long SourceLastWriteUtcTicks, string[] Words);
+    private sealed record DictionarySnapshot(HashSet<string> Words, IReadOnlyDictionary<int, IReadOnlyList<string>> WordsByLength);
+
+    private sealed record LegacyDictionaryCache(string SourceFullPath, long SourceLength, long SourceLastWriteUtcTicks, string[] Words);
 }

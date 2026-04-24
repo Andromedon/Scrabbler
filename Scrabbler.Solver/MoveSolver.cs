@@ -1,11 +1,17 @@
 using System.Text;
-using Scrabbler.Domain.BoardModel;
 using Scrabbler.Data;
+using Scrabbler.Domain.BoardModel;
 
 namespace Scrabbler.Solver;
 
 public sealed class MoveSolver : IMoveSolver
 {
+    private static readonly Direction[] Directions = [Direction.Horizontal, Direction.Vertical];
+    private static readonly Dictionary<char, int> AlphabetIndexes = PolishAlphabet.Letters
+        .Select((letter, index) => new KeyValuePair<char, int>(letter, index))
+        .ToDictionary();
+    private static readonly MoveRankComparer RankComparer = new();
+
     private readonly IWordDictionary _dictionary;
     private readonly IReadOnlyDictionary<char, int> _letterValues;
 
@@ -17,86 +23,123 @@ public sealed class MoveSolver : IMoveSolver
 
     public IReadOnlyList<Move> FindBestMoves(Board board, Rack rack, int limit)
     {
-        var moves = new List<Move>();
-
-        var boardLetters = board.Cells
-            .Where(cell => cell.Letter is not null)
-            .GroupBy(cell => cell.Letter!.Value)
-            .ToDictionary(group => group.Key, group => group.Count());
-
-        foreach (var word in _dictionary.WordsByLength
-            .Where(pair => pair.Key <= Board.Size)
-            .SelectMany(pair => pair.Value)
-            .Where(word => CouldBeMadeFromRackAndBoard(word, rack, boardLetters)))
+        if (limit <= 0)
         {
-            foreach (Direction direction in Enum.GetValues<Direction>())
+            return Array.Empty<Move>();
+        }
+
+        var context = SolverContext.Create(board, rack);
+        var bestMoves = new List<Move>(limit);
+
+        foreach (var pair in _dictionary.WordsByLength)
+        {
+            if (pair.Key > Board.Size)
             {
-                var maxStart = Board.Size - word.Length;
-                for (var fixedAxis = 0; fixedAxis < Board.Size; fixedAxis++)
+                continue;
+            }
+
+            var words = pair.Value;
+            for (var wordIndex = 0; wordIndex < words.Count; wordIndex++)
+            {
+                var word = words[wordIndex];
+                if (!CouldBeMadeFromRackAndBoard(word, context.RackLetterCounts, rack.BlankCount, context.BoardLetterCounts))
                 {
-                    for (var start = 0; start <= maxStart; start++)
+                    continue;
+                }
+
+                for (var directionIndex = 0; directionIndex < Directions.Length; directionIndex++)
+                {
+                    var direction = Directions[directionIndex];
+                    var maxStart = Board.Size - word.Length;
+                    for (var fixedAxis = 0; fixedAxis < Board.Size; fixedAxis++)
                     {
-                        if (TryBuildMove(board, rack, word, direction, fixedAxis, start, out var move))
+                        for (var start = 0; start <= maxStart; start++)
                         {
-                            moves.Add(move);
+                            if (TryBuildMove(context, word, direction, fixedAxis, start, out var move))
+                            {
+                                InsertCandidate(bestMoves, move, limit);
+                            }
                         }
                     }
                 }
             }
         }
 
-        return moves
-            .OrderByDescending(move => move.Score)
-            .ThenBy(move => move.PlacedTiles.Count(tile => tile.IsBlank))
-            .ThenByDescending(move => move.Word.Length)
-            .ThenBy(move => move.Word, StringComparer.Ordinal)
-            .ThenBy(move => move.Row)
-            .ThenBy(move => move.Column)
-            .Take(limit)
-            .ToList();
+        return bestMoves;
     }
 
-    private static bool CouldBeMadeFromRackAndBoard(string word, Rack rack, IReadOnlyDictionary<char, int> boardLetters)
+    private static void InsertCandidate(List<Move> bestMoves, Move candidate, int limit)
     {
-        var blanksNeeded = 0;
-        foreach (var group in word.GroupBy(letter => letter))
+        var index = 0;
+        while (index < bestMoves.Count && RankComparer.Compare(bestMoves[index], candidate) <= 0)
         {
-            rack.Letters.TryGetValue(group.Key, out var rackCount);
-            boardLetters.TryGetValue(group.Key, out var boardCount);
-            var missing = group.Count() - rackCount - boardCount;
-            if (missing > 0)
+            index++;
+        }
+
+        if (index >= limit)
+        {
+            return;
+        }
+
+        bestMoves.Insert(index, candidate);
+        if (bestMoves.Count > limit)
+        {
+            bestMoves.RemoveAt(bestMoves.Count - 1);
+        }
+    }
+
+    private static bool CouldBeMadeFromRackAndBoard(string word, int[] rackLetters, int blankCount, int[] boardLetters)
+    {
+        Span<int> wordCounts = stackalloc int[AlphabetIndexes.Count];
+        for (var i = 0; i < word.Length; i++)
+        {
+            wordCounts[AlphabetIndexes[word[i]]]++;
+        }
+
+        var blanksNeeded = 0;
+        for (var i = 0; i < wordCounts.Length; i++)
+        {
+            var missing = wordCounts[i] - rackLetters[i] - boardLetters[i];
+            if (missing <= 0)
             {
-                blanksNeeded += missing;
-                if (blanksNeeded > rack.BlankCount)
-                {
-                    return false;
-                }
+                continue;
+            }
+
+            blanksNeeded += missing;
+            if (blanksNeeded > blankCount)
+            {
+                return false;
             }
         }
 
         return true;
     }
 
-    private bool TryBuildMove(Board board, Rack rack, string word, Direction direction, int fixedAxis, int start, out Move move)
+    private bool TryBuildMove(SolverContext context, string word, Direction direction, int fixedAxis, int start, out Move move)
     {
         move = default!;
 
         var row = direction == Direction.Horizontal ? fixedAxis : start;
         var col = direction == Direction.Horizontal ? start : fixedAxis;
-        if (HasAdjacentBeforeOrAfter(board, word.Length, row, col, direction))
+        if (HasAdjacentBeforeOrAfter(context.Occupied, word.Length, row, col, direction))
         {
             return false;
         }
 
-        var remaining = rack.Letters.ToDictionary(pair => pair.Key, pair => pair.Value);
-        var blanks = rack.BlankCount;
-        var placed = new List<PlacedTile>();
+        Span<int> remaining = stackalloc int[AlphabetIndexes.Count];
+        context.RackLetterCounts.CopyTo(remaining);
+        Span<PlacementCandidate> placedBuffer = stackalloc PlacementCandidate[Board.Size];
+        var placedCount = 0;
+        var blanks = context.Rack.BlankCount;
         var touchedExisting = false;
+        var touchedNeighbor = false;
+        var score = 0;
+        var wordMultiplier = 1;
 
         for (var i = 0; i < word.Length; i++)
         {
             var (r, c) = Coordinate(row, col, direction, i);
-            var cell = board[r, c];
+            var cell = context.Board[r, c];
             var letter = word[i];
 
             if (cell.Letter is { } existing)
@@ -107,72 +150,159 @@ public sealed class MoveSolver : IMoveSolver
                 }
 
                 touchedExisting = true;
+                score += LetterScore(letter, cell.IsBlank);
                 continue;
             }
 
-            if (remaining.TryGetValue(letter, out var count) && count > 0)
+            var letterIndex = AlphabetIndexes[letter];
+            if (remaining[letterIndex] > 0)
             {
-                remaining[letter] = count - 1;
-                placed.Add(new PlacedTile(r, c, letter, false));
+                remaining[letterIndex]--;
+                placedBuffer[placedCount++] = new PlacementCandidate(r, c, letter, false);
+                score += LetterScore(letter, false) * LetterMultiplier(cell.Bonus);
             }
             else if (blanks > 0)
             {
                 blanks--;
-                placed.Add(new PlacedTile(r, c, letter, true));
+                placedBuffer[placedCount++] = new PlacementCandidate(r, c, letter, true);
+                score += LetterScore(letter, true) * LetterMultiplier(cell.Bonus);
             }
             else
             {
                 return false;
             }
+
+            wordMultiplier *= WordMultiplier(cell.Bonus);
+            touchedNeighbor |= context.HasNeighbor[r, c];
         }
 
-        if (placed.Count == 0)
+        if (placedCount == 0)
         {
             return false;
         }
 
-        if (board.IsEmpty)
+        if (context.IsBoardEmpty)
         {
             if (!CoversCenter(row, col, direction, word.Length))
             {
                 return false;
             }
         }
-        else if (!touchedExisting && !placed.Any(tile => HasNeighbor(board, tile.Row, tile.Column)))
+        else if (!touchedExisting && !touchedNeighbor)
         {
             return false;
         }
 
-        var crossWords = new List<string>();
-        var score = ScoreMainWord(board, word, row, col, direction, placed);
+        score *= wordMultiplier;
+        var crossWords = new List<string>(placedCount);
 
-        foreach (var tile in placed)
+        for (var i = 0; i < placedCount; i++)
         {
+            var tile = placedBuffer[i];
             var crossDirection = direction == Direction.Horizontal ? Direction.Vertical : Direction.Horizontal;
-            var cross = BuildWordThrough(board, tile.Row, tile.Column, crossDirection, tile.Letter);
-            if (cross.Word.Length <= 1)
-            {
-                continue;
-            }
-
-            if (!_dictionary.Contains(cross.Word))
+            if (!TryScoreCrossWord(context.Board, tile, crossDirection, out var crossWord, out var crossScore))
             {
                 return false;
             }
 
-            crossWords.Add(cross.Word);
-            score += ScoreCrossWord(board, cross.Cells, tile);
+            if (crossWord is null)
+            {
+                continue;
+            }
+
+            crossWords.Add(crossWord);
+            score += crossScore;
         }
 
-        move = new Move(word, row, col, direction, placed, score, crossWords);
+        var placedTiles = new List<PlacedTile>(placedCount);
+        for (var i = 0; i < placedCount; i++)
+        {
+            var tile = placedBuffer[i];
+            placedTiles.Add(new PlacedTile(tile.Row, tile.Column, tile.Letter, tile.IsBlank));
+        }
+
+        move = new Move(word, row, col, direction, placedTiles, score, crossWords);
         return true;
     }
 
-    private bool HasAdjacentBeforeOrAfter(Board board, int length, int row, int col, Direction direction)
+    private bool TryScoreCrossWord(Board board, PlacementCandidate newTile, Direction direction, out string? crossWord, out int score)
+    {
+        var startRow = newTile.Row;
+        var startCol = newTile.Column;
+        while (true)
+        {
+            var previous = direction == Direction.Horizontal
+                ? (Row: startRow, Col: startCol - 1)
+                : (Row: startRow - 1, Col: startCol);
+            if (!IsOccupied(board, previous.Row, previous.Col))
+            {
+                break;
+            }
+
+            startRow = previous.Row;
+            startCol = previous.Col;
+        }
+
+        var builder = new StringBuilder();
+        var currentRow = startRow;
+        var currentCol = startCol;
+        var wordMultiplier = 1;
+        var wordScore = 0;
+
+        while (Board.IsInside(currentRow, currentCol))
+        {
+            var isNewTile = currentRow == newTile.Row && currentCol == newTile.Column;
+            var letter = isNewTile ? newTile.Letter : board[currentRow, currentCol].Letter;
+            if (letter is null)
+            {
+                break;
+            }
+
+            builder.Append(letter.Value);
+            var cell = board[currentRow, currentCol];
+            if (isNewTile)
+            {
+                wordScore += LetterScore(letter.Value, newTile.IsBlank) * LetterMultiplier(cell.Bonus);
+                wordMultiplier *= WordMultiplier(cell.Bonus);
+            }
+            else
+            {
+                wordScore += LetterScore(letter.Value, cell.IsBlank);
+            }
+
+            if (direction == Direction.Horizontal)
+            {
+                currentCol++;
+            }
+            else
+            {
+                currentRow++;
+            }
+        }
+
+        if (builder.Length <= 1)
+        {
+            crossWord = null;
+            score = 0;
+            return true;
+        }
+
+        crossWord = builder.ToString();
+        if (!_dictionary.Contains(crossWord))
+        {
+            score = 0;
+            return false;
+        }
+
+        score = wordScore * wordMultiplier;
+        return true;
+    }
+
+    private static bool HasAdjacentBeforeOrAfter(bool[,] occupied, int length, int row, int col, Direction direction)
     {
         var before = direction == Direction.Horizontal ? (row, col - 1) : (row - 1, col);
         var after = direction == Direction.Horizontal ? (row, col + length) : (row + length, col);
-        return IsOccupied(board, before) || IsOccupied(board, after);
+        return IsOccupied(occupied, before.Item1, before.Item2) || IsOccupied(occupied, after.Item1, after.Item2);
     }
 
     private static bool CoversCenter(int row, int col, Direction direction, int length)
@@ -189,115 +319,14 @@ public sealed class MoveSolver : IMoveSolver
         return false;
     }
 
-    private static bool HasNeighbor(Board board, int row, int col)
+    private static bool IsOccupied(Board board, int row, int col)
     {
-        return IsOccupied(board, (row - 1, col))
-            || IsOccupied(board, (row + 1, col))
-            || IsOccupied(board, (row, col - 1))
-            || IsOccupied(board, (row, col + 1));
+        return Board.IsInside(row, col) && board[row, col].Letter is not null;
     }
 
-    private static bool IsOccupied(Board board, (int Row, int Col) coordinate)
+    private static bool IsOccupied(bool[,] occupied, int row, int col)
     {
-        return Board.IsInside(coordinate.Row, coordinate.Col) && board[coordinate.Row, coordinate.Col].Letter is not null;
-    }
-
-    private int ScoreMainWord(Board board, string word, int row, int col, Direction direction, IReadOnlyList<PlacedTile> placed)
-    {
-        var placedMap = placed.ToDictionary(tile => (tile.Row, tile.Column));
-        var wordMultiplier = 1;
-        var score = 0;
-
-        for (var i = 0; i < word.Length; i++)
-        {
-            var (r, c) = Coordinate(row, col, direction, i);
-            var cell = board[r, c];
-            var letter = word[i];
-
-            if (placedMap.TryGetValue((r, c), out var placedTile))
-            {
-                score += LetterScore(letter, placedTile.IsBlank) * LetterMultiplier(cell.Bonus);
-                wordMultiplier *= WordMultiplier(cell.Bonus);
-            }
-            else
-            {
-                score += LetterScore(letter, cell.IsBlank);
-            }
-        }
-
-        return score * wordMultiplier;
-    }
-
-    private int ScoreCrossWord(Board board, IReadOnlyList<(int Row, int Column, char Letter)> cells, PlacedTile newTile)
-    {
-        var wordMultiplier = 1;
-        var score = 0;
-
-        foreach (var (row, col, letter) in cells)
-        {
-            var cell = board[row, col];
-            if (row == newTile.Row && col == newTile.Column)
-            {
-                score += LetterScore(letter, newTile.IsBlank) * LetterMultiplier(cell.Bonus);
-                wordMultiplier *= WordMultiplier(cell.Bonus);
-            }
-            else
-            {
-                score += LetterScore(letter, cell.IsBlank);
-            }
-        }
-
-        return score * wordMultiplier;
-    }
-
-    private (string Word, IReadOnlyList<(int Row, int Column, char Letter)> Cells) BuildWordThrough(
-        Board board,
-        int row,
-        int col,
-        Direction direction,
-        char newLetter)
-    {
-        var startRow = row;
-        var startCol = col;
-        while (true)
-        {
-            var previous = direction == Direction.Horizontal ? (startRow, startCol - 1) : (startRow - 1, startCol);
-            if (!IsOccupied(board, previous))
-            {
-                break;
-            }
-
-            startRow = previous.Item1;
-            startCol = previous.Item2;
-        }
-
-        var builder = new StringBuilder();
-        var cells = new List<(int Row, int Column, char Letter)>();
-        var currentRow = startRow;
-        var currentCol = startCol;
-
-        while (Board.IsInside(currentRow, currentCol))
-        {
-            var letter = currentRow == row && currentCol == col ? newLetter : board[currentRow, currentCol].Letter;
-            if (letter is null)
-            {
-                break;
-            }
-
-            builder.Append(letter.Value);
-            cells.Add((currentRow, currentCol, letter.Value));
-
-            if (direction == Direction.Horizontal)
-            {
-                currentCol++;
-            }
-            else
-            {
-                currentRow++;
-            }
-        }
-
-        return (builder.ToString(), cells);
+        return Board.IsInside(row, col) && occupied[row, col];
     }
 
     private int LetterScore(char letter, bool isBlank)
@@ -338,5 +367,140 @@ public sealed class MoveSolver : IMoveSolver
     private static (int Row, int Col) Coordinate(int row, int col, Direction direction, int offset)
     {
         return direction == Direction.Horizontal ? (row, col + offset) : (row + offset, col);
+    }
+
+    private static int BlankTileCount(Move move)
+    {
+        var count = 0;
+        for (var i = 0; i < move.PlacedTiles.Count; i++)
+        {
+            if (move.PlacedTiles[i].IsBlank)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private sealed class MoveRankComparer : IComparer<Move>
+    {
+        public int Compare(Move? x, Move? y)
+        {
+            if (ReferenceEquals(x, y))
+            {
+                return 0;
+            }
+
+            ArgumentNullException.ThrowIfNull(x);
+            ArgumentNullException.ThrowIfNull(y);
+
+            var byScore = y.Score.CompareTo(x.Score);
+            if (byScore != 0)
+            {
+                return byScore;
+            }
+
+            var byBlanks = BlankTileCount(x).CompareTo(BlankTileCount(y));
+            if (byBlanks != 0)
+            {
+                return byBlanks;
+            }
+
+            var byLength = y.Word.Length.CompareTo(x.Word.Length);
+            if (byLength != 0)
+            {
+                return byLength;
+            }
+
+            var byWord = StringComparer.Ordinal.Compare(x.Word, y.Word);
+            if (byWord != 0)
+            {
+                return byWord;
+            }
+
+            var byRow = x.Row.CompareTo(y.Row);
+            if (byRow != 0)
+            {
+                return byRow;
+            }
+
+            return x.Column.CompareTo(y.Column);
+        }
+    }
+
+    private readonly record struct PlacementCandidate(int Row, int Column, char Letter, bool IsBlank);
+
+    private sealed class SolverContext
+    {
+        private SolverContext(Board board, Rack rack, bool isBoardEmpty, bool[,] occupied, bool[,] hasNeighbor, int[] boardLetterCounts, int[] rackLetterCounts)
+        {
+            Board = board;
+            Rack = rack;
+            IsBoardEmpty = isBoardEmpty;
+            Occupied = occupied;
+            HasNeighbor = hasNeighbor;
+            BoardLetterCounts = boardLetterCounts;
+            RackLetterCounts = rackLetterCounts;
+        }
+
+        public Board Board { get; }
+        public Rack Rack { get; }
+        public bool IsBoardEmpty { get; }
+        public bool[,] Occupied { get; }
+        public bool[,] HasNeighbor { get; }
+        public int[] BoardLetterCounts { get; }
+        public int[] RackLetterCounts { get; }
+
+        public static SolverContext Create(Board board, Rack rack)
+        {
+            var occupied = new bool[Board.Size, Board.Size];
+            var hasNeighbor = new bool[Board.Size, Board.Size];
+            var boardLetterCounts = new int[AlphabetIndexes.Count];
+            var rackLetterCounts = new int[AlphabetIndexes.Count];
+            var isBoardEmpty = true;
+
+            foreach (var pair in rack.Letters)
+            {
+                rackLetterCounts[AlphabetIndexes[pair.Key]] = pair.Value;
+            }
+
+            for (var row = 0; row < Board.Size; row++)
+            {
+                for (var col = 0; col < Board.Size; col++)
+                {
+                    var letter = board[row, col].Letter;
+                    if (letter is null)
+                    {
+                        continue;
+                    }
+
+                    isBoardEmpty = false;
+                    occupied[row, col] = true;
+                    boardLetterCounts[AlphabetIndexes[letter.Value]]++;
+                }
+            }
+
+            if (!isBoardEmpty)
+            {
+                for (var row = 0; row < Board.Size; row++)
+                {
+                    for (var col = 0; col < Board.Size; col++)
+                    {
+                        if (occupied[row, col])
+                        {
+                            continue;
+                        }
+
+                        hasNeighbor[row, col] = IsOccupied(occupied, row - 1, col)
+                            || IsOccupied(occupied, row + 1, col)
+                            || IsOccupied(occupied, row, col - 1)
+                            || IsOccupied(occupied, row, col + 1);
+                    }
+                }
+            }
+
+            return new SolverContext(board, rack, isBoardEmpty, occupied, hasNeighbor, boardLetterCounts, rackLetterCounts);
+        }
     }
 }

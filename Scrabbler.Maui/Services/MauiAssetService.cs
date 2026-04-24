@@ -5,6 +5,8 @@ namespace Scrabbler.Maui.Services;
 
 public sealed class MauiAssetService
 {
+    public sealed record EnsureResult(TimeSpan Elapsed, bool WasAlreadyInitialized);
+
     private readonly SemaphoreSlim _lock = new(1, 1);
     private bool _initialized;
 
@@ -20,11 +22,13 @@ public sealed class MauiAssetService
 
     public string? Warning { get; private set; }
 
-    public async Task EnsureAsync(CancellationToken cancellationToken = default)
+    public async Task<EnsureResult> EnsureAsync(CancellationToken cancellationToken = default)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         if (_initialized)
         {
-            return;
+            stopwatch.Stop();
+            return new EnsureResult(stopwatch.Elapsed, WasAlreadyInitialized: true);
         }
 
         await _lock.WaitAsync(cancellationToken);
@@ -32,7 +36,8 @@ public sealed class MauiAssetService
         {
             if (_initialized)
             {
-                return;
+                stopwatch.Stop();
+                return new EnsureResult(stopwatch.Elapsed, WasAlreadyInitialized: true);
             }
 
             DataDirectory = Path.Combine(FileSystem.AppDataDirectory, "Data");
@@ -57,6 +62,8 @@ public sealed class MauiAssetService
             }
 
             _initialized = true;
+            stopwatch.Stop();
+            return new EnsureResult(stopwatch.Elapsed, WasAlreadyInitialized: false);
         }
         finally
         {

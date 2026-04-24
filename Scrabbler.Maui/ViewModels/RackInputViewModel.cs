@@ -71,6 +71,16 @@ public sealed class RackInputViewModel : ObservableObject
     {
         var session = _services.GetRequiredService<ScrabblerSession>();
         var parts = new List<string>();
+        if (session.Performance.AssetPreparation is not null)
+        {
+            parts.Add($"Assets: {session.Performance.AssetPreparation.Value.TotalSeconds:0.00}s");
+        }
+
+        if (session.Performance.ImageImport is not null)
+        {
+            parts.Add($"Image import: {session.Performance.ImageImport.Value.TotalSeconds:0.00}s");
+        }
+
         if (session.Performance.DictionaryLoad is not null)
         {
             var cacheLabel = session.Performance.DictionaryCacheWarm ? "warm cache" : "cold cache";
@@ -79,6 +89,11 @@ public sealed class RackInputViewModel : ObservableObject
         else if (session.Performance.DictionaryReady)
         {
             parts.Add("Dictionary: already loaded");
+        }
+
+        if (session.Performance.SolverConstruction is not null)
+        {
+            parts.Add($"Solver: {session.Performance.SolverConstruction.Value.TotalSeconds:0.00}s");
         }
 
         if (session.Performance.Solve is not null)

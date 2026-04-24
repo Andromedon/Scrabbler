@@ -10,7 +10,9 @@
             </Style>
             <Style TargetType="Button">
                 <Setter Property="CornerRadius" Value="6" />
-                <Setter Property="Padding" Value="14,10" />
+                <Setter Property="FontSize" Value="17" />
+                <Setter Property="MinimumHeightRequest" Value="54" />
+                <Setter Property="Padding" Value="18,12" />
             </Style>
             <Style TargetType="Entry">
                 <Setter Property="ClearButtonVisibility" Value="WhileEditing" />

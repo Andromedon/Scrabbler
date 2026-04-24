@@ -52,6 +52,8 @@ public sealed class HomeViewModel : ObservableObject
         private set => SetProperty(ref _isBusy, value);
     }
 
+    public string BuildTimestamp => $"Build: {BuildInfo.Timestamp}";
+
     public ICommand LoadFromGalleryCommand { get; }
 
     public ICommand DownloadFromGoogleDriveCommand { get; }
@@ -84,9 +86,15 @@ public sealed class HomeViewModel : ObservableObject
 
             Status = "Reading board...";
             await Task.Yield();
-            await _workflow.ReadBoardAsync(image.FullName);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            await _workflow.ReadBoardAsync(image.FullName, UpdateReadStatus, timeout.Token);
+            _ = WarmDictionaryInBackgroundAsync();
             Status = string.Empty;
             await _navigation.PushAsync(_services.GetRequiredService<BoardCorrectionPage>());
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "Reading board timed out after 45 seconds. Try a smaller/cropped screenshot.";
         }
         catch (Exception ex)
         {
@@ -96,6 +104,11 @@ public sealed class HomeViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    private void UpdateReadStatus(string status)
+    {
+        MainThread.BeginInvokeOnMainThread(() => Status = status);
     }
 
     private async Task WarmDictionaryAsync()
@@ -124,5 +137,19 @@ public sealed class HomeViewModel : ObservableObject
         DictionaryStatus = cached
             ? "Dictionary cache is available."
             : "Dictionary cache is not built yet.";
+    }
+
+    private async Task WarmDictionaryInBackgroundAsync()
+    {
+        try
+        {
+            _workflow.StartWarmDictionaryInBackground();
+            await Task.Delay(250);
+            await RefreshDictionaryStatusAsync();
+        }
+        catch
+        {
+            // Foreground dictionary loading surfaces errors.
+        }
     }
 }

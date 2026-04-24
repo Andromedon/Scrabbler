@@ -7,8 +7,11 @@ namespace Scrabbler.Maui.Services;
 public sealed class ScrabblerSession
 {
     public sealed record PerformanceSnapshot(
+        TimeSpan? AssetPreparation = null,
+        TimeSpan? ImageImport = null,
         TimeSpan? BoardRead = null,
         TimeSpan? DictionaryLoad = null,
+        TimeSpan? SolverConstruction = null,
         TimeSpan? Solve = null,
         bool DictionaryCacheWarm = false,
         bool DictionaryReady = false);

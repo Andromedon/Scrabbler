@@ -11,9 +11,11 @@ public sealed class ScrabblerWorkflowService
     private readonly MauiAssetService _assets;
     private readonly ScrabblerSession _session;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly object _backgroundWarmupLock = new();
     private IBoardImageReader? _reader;
     private IReadOnlyDictionary<char, int>? _letterValues;
     private IMoveSolver? _solver;
+    private Task? _backgroundWarmupTask;
 
     public ScrabblerWorkflowService(MauiAssetService assets, ScrabblerSession session)
     {
@@ -21,18 +23,22 @@ public sealed class ScrabblerWorkflowService
         _session = session;
     }
 
-    public async Task ReadBoardAsync(string imagePath, CancellationToken cancellationToken = default)
+    public async Task ReadBoardAsync(string imagePath, Action<string>? reportStatus = null, CancellationToken cancellationToken = default)
     {
+        reportStatus?.Invoke("Preparing board reader...");
         await EnsureReaderAsync(cancellationToken);
+        reportStatus?.Invoke("Analyzing board image...");
         var stopwatch = Stopwatch.StartNew();
         var result = await Task.Run(() => _reader!.ReadAsync(imagePath), cancellationToken);
         stopwatch.Stop();
+        reportStatus?.Invoke("Preparing correction screen...");
         _session.ImagePath = imagePath;
         _session.Board = result.Board;
         _session.Cells = result.Cells;
         _session.Moves = Array.Empty<Move>();
         _session.AssetWarning = _assets.Warning;
         _session.Performance = _session.Performance with { BoardRead = stopwatch.Elapsed };
+        StartWarmDictionaryInBackground();
     }
 
     public void ApplyCorrections(string corrections)
@@ -55,9 +61,7 @@ public sealed class ScrabblerWorkflowService
         var rack = Rack.Parse(rackText);
         await EnsureSolverAsync(cancellationToken);
         var solveStopwatch = Stopwatch.StartNew();
-        var moves = await Task.Run(() => _solver!.FindBestMoves(_session.Board, rack, limit)
-            .OrderByDescending(move => move.Score)
-            .ToArray(), cancellationToken);
+        var moves = await Task.Run(() => _solver!.FindBestMoves(_session.Board, rack, limit), cancellationToken);
         solveStopwatch.Stop();
         _session.Rack = rack;
         _session.Moves = moves;
@@ -68,6 +72,39 @@ public sealed class ScrabblerWorkflowService
     public async Task WarmDictionaryAsync(CancellationToken cancellationToken = default)
     {
         await EnsureSolverAsync(cancellationToken);
+    }
+
+    public void StartWarmDictionaryInBackground()
+    {
+        if (_session.Board is null)
+        {
+            return;
+        }
+
+        lock (_backgroundWarmupLock)
+        {
+            if (_solver is not null)
+            {
+                return;
+            }
+
+            if (_backgroundWarmupTask is { IsCompleted: false })
+            {
+                return;
+            }
+
+            _backgroundWarmupTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await WarmDictionaryAsync();
+                }
+                catch
+                {
+                    // Ignore background warm-up failures; foreground actions surface them.
+                }
+            });
+        }
     }
 
     public async Task<bool> IsDictionaryCachedAsync(CancellationToken cancellationToken = default)
@@ -93,10 +130,14 @@ public sealed class ScrabblerWorkflowService
                 return;
             }
 
-            await _assets.EnsureAsync(cancellationToken);
+            var assetResult = await _assets.EnsureAsync(cancellationToken);
             var bonuses = BonusLayoutLoader.Load(_assets.BonusLayoutPath);
             _letterValues = LetterValuesLoader.Load(_assets.LetterValuesPath);
             _reader = new ImageSharpScreenshotBoardImageReader(bonuses, _letterValues, _assets.LetterSamplesPath);
+            _session.Performance = _session.Performance with
+            {
+                AssetPreparation = assetResult.Elapsed
+            };
         }
         finally
         {
@@ -119,20 +160,24 @@ public sealed class ScrabblerWorkflowService
                 return;
             }
 
-            await _assets.EnsureAsync(cancellationToken);
+            var assetResult = await _assets.EnsureAsync(cancellationToken);
             _letterValues ??= LetterValuesLoader.Load(_assets.LetterValuesPath);
             var cacheDirectory = Path.Combine(FileSystem.CacheDirectory, "DictionaryCache");
             var cacheWasWarm = Directory.Exists(cacheDirectory)
                 && Directory.EnumerateFileSystemEntries(cacheDirectory).Any();
-            var stopwatch = Stopwatch.StartNew();
+            var dictionaryStopwatch = Stopwatch.StartNew();
             var dictionary = await Task.Run(() => PolishWordDictionary.Load(
                 _assets.DictionaryPath,
                 cacheDirectory), cancellationToken);
-            stopwatch.Stop();
+            dictionaryStopwatch.Stop();
+            var solverStopwatch = Stopwatch.StartNew();
             _solver = new MoveSolver(dictionary, _letterValues);
+            solverStopwatch.Stop();
             _session.Performance = _session.Performance with
             {
-                DictionaryLoad = stopwatch.Elapsed,
+                AssetPreparation = assetResult.Elapsed,
+                DictionaryLoad = dictionaryStopwatch.Elapsed,
+                SolverConstruction = solverStopwatch.Elapsed,
                 DictionaryCacheWarm = cacheWasWarm,
                 DictionaryReady = true
             };

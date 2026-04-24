@@ -4,35 +4,37 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     Title="Correct Board">
-    <ScrollView>
-        <VerticalStackLayout Padding="16" Spacing="12">
-            <Label Text="{Binding DetectedCellsText}" LineBreakMode="WordWrap" />
-            <ScrollView Orientation="Both" HeightRequest="340">
-                <VerticalStackLayout
-                    Padding="8"
-                    BackgroundColor="{AppThemeBinding Light=#F7F3EA, Dark=#1F1F1F}"
-                    BindableLayout.ItemsSource="{Binding BoardLines}"
-                    Spacing="0">
-                    <BindableLayout.ItemTemplate>
-                        <DataTemplate>
-                            <Label
-                                Text="{Binding .}"
-                                FontFamily="Menlo"
-                                FontSize="13"
-                                LineBreakMode="NoWrap"
-                                TextColor="{AppThemeBinding Light=Black, Dark=White}" />
-                        </DataTemplate>
-                    </BindableLayout.ItemTemplate>
-                </VerticalStackLayout>
-            </ScrollView>
-            <Entry
-                Placeholder="A1=Ł, H8=?, J10=."
-                Text="{Binding Corrections}" />
-            <HorizontalStackLayout Spacing="12">
-                <Button Text="Apply" Command="{Binding ApplyCommand}" />
-                <Button Text="Continue" Command="{Binding ContinueCommand}" />
-            </HorizontalStackLayout>
+    <Grid Padding="16" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="12">
+        <Label Grid.Row="0" Text="{Binding DetectedCellsText}" LineBreakMode="WordWrap" />
+        <ScrollView Grid.Row="1" Orientation="Both">
+            <VerticalStackLayout
+                Padding="10"
+                BackgroundColor="{AppThemeBinding Light=#F7F3EA, Dark=#1F1F1F}"
+                BindableLayout.ItemsSource="{Binding BoardLines}"
+                Spacing="0"
+                VerticalOptions="Fill">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <Label
+                            Text="{Binding .}"
+                            FontFamily="Menlo"
+                            FontSize="16"
+                            LineBreakMode="NoWrap"
+                            TextColor="{AppThemeBinding Light=Black, Dark=White}" />
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+        </ScrollView>
+        <Entry
+            Grid.Row="2"
+            Placeholder="A1=Ł, H8=?, J10=."
+            Text="{Binding Corrections}" />
+        <HorizontalStackLayout Grid.Row="3" Spacing="12">
+            <Button Text="Apply" Command="{Binding ApplyCommand}" />
+            <Button Text="Continue" Command="{Binding ContinueCommand}" />
+        </HorizontalStackLayout>
+        <ScrollView Grid.Row="4" MaximumHeightRequest="96">
             <Label Text="{Binding Message}" TextColor="DarkRed" LineBreakMode="WordWrap" />
-        </VerticalStackLayout>
-    </ScrollView>
+        </ScrollView>
+    </Grid>
 </ContentPage>

@@ -44,4 +44,29 @@
     <Exec Command="/usr/bin/xattr -cr &quot;$(AppBundleDir)&quot;" />
   </Target>
 
+  <PropertyGroup>
+    <GeneratedBuildInfoFile>$(MSBuildProjectDirectory)/obj/$(Configuration)/$(TargetFramework)/Generated/BuildInfo.g.cs</GeneratedBuildInfoFile>
+    <BuildTimestampUtc>$([System.DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'"))</BuildTimestampUtc>
+  </PropertyGroup>
+
+  <Target Name="GenerateBuildInfo" BeforeTargets="BeforeCompile">
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(GeneratedBuildInfoFile)'))" />
+    <ItemGroup>
+      <BuildInfoLine Include="namespace Scrabbler.Maui" />
+      <BuildInfoLine Include="{" />
+      <BuildInfoLine Include="    internal static class BuildInfo" />
+      <BuildInfoLine Include="    {" />
+      <BuildInfoLine Include="        public const string Timestamp = &quot;$(BuildTimestampUtc)&quot;%3B" />
+      <BuildInfoLine Include="    }" />
+      <BuildInfoLine Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile
+      File="$(GeneratedBuildInfoFile)"
+      Lines="@(BuildInfoLine)"
+      Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(GeneratedBuildInfoFile)" />
+    </ItemGroup>
+  </Target>
+
 </Project>

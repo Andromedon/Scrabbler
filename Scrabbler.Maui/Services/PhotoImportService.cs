@@ -2,8 +2,16 @@ namespace Scrabbler.Maui.Services;
 
 public sealed class PhotoImportService : IPhotoImportService
 {
+    private readonly ScrabblerSession _session;
+
+    public PhotoImportService(ScrabblerSession session)
+    {
+        _session = session;
+    }
+
     public async Task<FileInfo?> PickPhotoAsync(CancellationToken cancellationToken = default)
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var photos = await MediaPicker.Default.PickPhotosAsync(new MediaPickerOptions
         {
             Title = "Select board screenshot"
@@ -22,6 +30,8 @@ public sealed class PhotoImportService : IPhotoImportService
         await using var source = await photo.OpenReadAsync();
         await using var target = File.Create(destination);
         await source.CopyToAsync(target, cancellationToken);
+        stopwatch.Stop();
+        _session.Performance = _session.Performance with { ImageImport = stopwatch.Elapsed };
         return new FileInfo(destination);
     }
 }

@@ -5,7 +5,22 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     Title="Correct Board">
     <Grid Padding="16" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="12">
-        <Label Grid.Row="0" Text="{Binding DetectedCellsText}" LineBreakMode="WordWrap" />
+        <VerticalStackLayout Grid.Row="0" Spacing="6">
+            <Label Text="{Binding ReviewCellsText}" LineBreakMode="WordWrap" />
+            <Button
+                Text="{Binding DetectedToggleText}"
+                Command="{Binding ToggleDetectedCellsCommand}"
+                FontSize="13"
+                MinimumHeightRequest="34"
+                Padding="8,4"
+                HorizontalOptions="Start" />
+            <ScrollView IsVisible="{Binding IsDetectedCellsExpanded}" MaximumHeightRequest="92">
+                <Label
+                    Text="{Binding DetectedCellsText}"
+                    FontSize="11"
+                    LineBreakMode="WordWrap" />
+            </ScrollView>
+        </VerticalStackLayout>
         <ScrollView Grid.Row="1" Orientation="Both">
             <VerticalStackLayout
                 Padding="10"

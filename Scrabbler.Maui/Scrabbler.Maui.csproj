@@ -13,6 +13,8 @@
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
     <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <AppIcon>appicon</AppIcon>
+    <XSAppIconAssets>Assets.xcassets/appicon.appiconset</XSAppIconAssets>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <MauiIcon Include="Resources/AppIcon/appicon.png" />
+    <BundleResource Include="Platforms/iOS/Assets.xcassets/appicon.appiconset/*.png" LogicalName="%(Filename)%(Extension)" />
     <MauiSplashScreen Include="Resources/Splash/splash.png" Color="#FFFFFF" BaseSize="512,512" />
     <MauiAsset Include="..\Scrabbler.Assets\Data\**\*.*" LogicalName="Data/%(RecursiveDir)%(Filename)%(Extension)" />
     <MauiAsset Include="..\Scrabbler.ConsoleApp\Data\dictionary-pl.txt" LogicalName="Data/dictionary-pl.txt" Condition="Exists('..\Scrabbler.ConsoleApp\Data\dictionary-pl.txt')" />
@@ -42,6 +44,20 @@
 
   <Target Name="RemoveIOSBundleExtendedAttributes" BeforeTargets="_CodesignAppBundle" Condition="'$(TargetFramework)' == 'net10.0-ios' and Exists('$(AppBundleDir)')">
     <Exec Command="/usr/bin/xattr -cr &quot;$(AppBundleDir)&quot;" />
+  </Target>
+
+  <Target Name="PatchIOSAppIconManifest" BeforeTargets="_CodesignAppBundle" Condition="'$(TargetFramework)' == 'net10.0-ios' and Exists('$(AppBundleDir)/Info.plist')">
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Delete :CFBundleIcons&quot; &quot;$(AppBundleDir)/Info.plist&quot;" IgnoreExitCode="true" />
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons dict&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons:CFBundlePrimaryIcon dict&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles array&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:0 string appicon20x20&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:1 string appicon29x29&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:2 string appicon40x40&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:3 string appicon60x60&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:4 string appicon76x76&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:5 string appicon83.5x83.5&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
+    <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName string appicon&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
   </Target>
 
   <PropertyGroup>

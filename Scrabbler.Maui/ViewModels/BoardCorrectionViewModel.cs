@@ -14,6 +14,9 @@ public sealed class BoardCorrectionViewModel : ObservableObject
     private string _boardText = string.Empty;
     private IReadOnlyList<string> _boardLines = Array.Empty<string>();
     private string _detectedCellsText = string.Empty;
+    private string _reviewCellsText = string.Empty;
+    private string _detectedToggleText = "Show detected letters";
+    private bool _isDetectedCellsExpanded;
     private string _corrections = string.Empty;
     private string _message = string.Empty;
 
@@ -24,6 +27,7 @@ public sealed class BoardCorrectionViewModel : ObservableObject
         _workflow = workflow;
         _navigation = navigation;
         ApplyCommand = new Command(Apply);
+        ToggleDetectedCellsCommand = new Command(ToggleDetectedCells);
         ContinueCommand = new AsyncCommand(ContinueAsync);
         Refresh();
     }
@@ -46,6 +50,24 @@ public sealed class BoardCorrectionViewModel : ObservableObject
         private set => SetProperty(ref _detectedCellsText, value);
     }
 
+    public string ReviewCellsText
+    {
+        get => _reviewCellsText;
+        private set => SetProperty(ref _reviewCellsText, value);
+    }
+
+    public string DetectedToggleText
+    {
+        get => _detectedToggleText;
+        private set => SetProperty(ref _detectedToggleText, value);
+    }
+
+    public bool IsDetectedCellsExpanded
+    {
+        get => _isDetectedCellsExpanded;
+        private set => SetProperty(ref _isDetectedCellsExpanded, value);
+    }
+
     public string Corrections
     {
         get => _corrections;
@@ -59,6 +81,8 @@ public sealed class BoardCorrectionViewModel : ObservableObject
     }
 
     public ICommand ApplyCommand { get; }
+
+    public ICommand ToggleDetectedCellsCommand { get; }
 
     public ICommand ContinueCommand { get; }
 
@@ -95,6 +119,12 @@ public sealed class BoardCorrectionViewModel : ObservableObject
         await _navigation.PushAsync(_services.GetRequiredService<RackInputPage>());
     }
 
+    private void ToggleDetectedCells()
+    {
+        IsDetectedCellsExpanded = !IsDetectedCellsExpanded;
+        DetectedToggleText = IsDetectedCellsExpanded ? "Hide detected letters ▲" : "Show detected letters ▼";
+    }
+
     private void Refresh()
     {
         RefreshBoard();
@@ -109,8 +139,11 @@ public sealed class BoardCorrectionViewModel : ObservableObject
 
         DetectedCellsText = occupied.Length == 0
             ? "No occupied tile cells were detected automatically."
-            : $"Detected: {string.Join(", ", occupied)}"
-                + (uncertain.Length == 0 ? string.Empty : $"{Environment.NewLine}Review: {string.Join(", ", uncertain)}");
+            : string.Join(", ", occupied);
+        ReviewCellsText = uncertain.Length == 0
+            ? "Review: none"
+            : $"Review: {string.Join(", ", uncertain)}";
+        DetectedToggleText = IsDetectedCellsExpanded ? "Hide detected letters ▲" : "Show detected letters ▼";
 
         if (!string.IsNullOrWhiteSpace(_session.AssetWarning))
         {

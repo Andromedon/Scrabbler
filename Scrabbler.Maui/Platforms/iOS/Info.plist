@@ -24,6 +24,25 @@
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Scrabbler imports board screenshots from your photo library.</string>
+	<key>XSAppIconAssets</key>
+	<string>Assets.xcassets/appicon.appiconset</string>
+	<key>CFBundleIcons</key>
+	<dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconFiles</key>
+			<array>
+				<string>appicon20x20</string>
+				<string>appicon29x29</string>
+				<string>appicon40x40</string>
+				<string>appicon60x60</string>
+				<string>appicon76x76</string>
+				<string>appicon83.5x83.5</string>
+			</array>
+			<key>CFBundleIconName</key>
+			<string>appicon</string>
+		</dict>
+	</dict>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

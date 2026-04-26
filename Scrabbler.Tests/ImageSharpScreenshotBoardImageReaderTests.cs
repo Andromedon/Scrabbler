@@ -78,6 +78,27 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
         Assert.True(result.Cells.Count(cell => cell.IsOccupied) >= 10);
     }
 
+    [Theory]
+    [InlineData("board-real-7273.jpg", 70, "PAT", "STYPA", "URODNY", "RADA")]
+    [InlineData("board-real-7295.jpg", 55, "GODY", "ANIMĄ", "DONGA", "SROCZYMI", "PANIE")]
+    [InlineData("board-real-7330.jpg", 50, "DLAŃ", "TEGO", "TURA", "BLATY", "SERIA")]
+    [InlineData("board-real-7331.jpg", 60, "REJ", "SZKOLONY")]
+    public async Task ReadsRealBoardScreenshotFixtures(string fileName, int minimumOccupiedCells, params string[] expectedWords)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "TestData", fileName);
+        var reader = CreateReader(RealBonuses());
+
+        var result = await reader.ReadAsync(path);
+        var words = BoardLines(result.Board);
+
+        Assert.False(result.Board.IsEmpty);
+        Assert.True(result.Cells.Count(cell => cell.IsOccupied) >= minimumOccupiedCells);
+        foreach (var expectedWord in expectedWords)
+        {
+            Assert.Contains(expectedWord, words);
+        }
+    }
+
     [Fact]
     public async Task ReadsSampleBoardWithMixedTileColorsAndRedScoreBadge()
     {

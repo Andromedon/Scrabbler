@@ -150,6 +150,15 @@ public sealed class BoardCorrectionViewModel : ObservableObject
             Message = _session.AssetWarning;
         }
 
+        if (_session.Repairs.Count > 0)
+        {
+            var repairs = string.Join(", ", _session.Repairs.Select(repair =>
+                $"{(char)('A' + repair.Column)}{repair.Row + 1}={(repair.From?.ToString() ?? "?")}→{repair.To}"));
+            Message = string.IsNullOrWhiteSpace(Message)
+                ? $"OCR repaired: {repairs}"
+                : $"{Message}{Environment.NewLine}OCR repaired: {repairs}";
+        }
+
         var assetPreparation = _session.Performance.AssetPreparation;
         if (assetPreparation is not null)
         {

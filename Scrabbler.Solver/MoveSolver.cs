@@ -6,6 +6,7 @@ namespace Scrabbler.Solver;
 
 public sealed class MoveSolver : IMoveSolver
 {
+    private const int RackBingoBonus = 25;
     private static readonly Direction[] Directions = [Direction.Horizontal, Direction.Vertical];
     private static readonly Dictionary<char, int> AlphabetIndexes = PolishAlphabet.Letters
         .Select((letter, index) => new KeyValuePair<char, int>(letter, index))
@@ -212,6 +213,11 @@ public sealed class MoveSolver : IMoveSolver
 
             crossWords.Add(crossWord);
             score += crossScore;
+        }
+
+        if (placedCount == 7)
+        {
+            score += RackBingoBonus;
         }
 
         var placedTiles = new List<PlacedTile>(placedCount);

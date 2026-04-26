@@ -22,6 +22,8 @@ public sealed class ScrabblerSession
 
     public IReadOnlyList<CellRead> Cells { get; set; } = Array.Empty<CellRead>();
 
+    public IReadOnlyList<BoardRepair> Repairs { get; set; } = Array.Empty<BoardRepair>();
+
     public Rack? Rack { get; set; }
 
     public IReadOnlyList<Move> Moves { get; set; } = Array.Empty<Move>();
@@ -35,6 +37,7 @@ public sealed class ScrabblerSession
         ImagePath = null;
         Board = null;
         Cells = Array.Empty<CellRead>();
+        Repairs = Array.Empty<BoardRepair>();
         Rack = null;
         Moves = Array.Empty<Move>();
         AssetWarning = null;

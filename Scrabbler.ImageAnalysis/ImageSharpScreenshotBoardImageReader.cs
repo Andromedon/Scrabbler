@@ -43,19 +43,23 @@ public sealed class ImageSharpScreenshotBoardImageReader : IBoardImageReader
                     var occupied = IsLikelyTile(stats, _bonusLayout[row, col]);
                     char? letter = null;
                     var confidence = occupied ? 0.25f : 1f;
+                    IReadOnlyList<LetterCandidateRead>? candidates = null;
+                    ScoreDigitRead? scoreDigit = null;
                     if (occupied)
                     {
                         var cellBounds = GetCellBounds(boardBounds, cellWidth, cellHeight, row, col);
                         var recognition = recognizer.Recognize(image, cellBounds);
                         letter = recognition.Letter;
                         confidence = recognition.Confidence;
+                        candidates = recognition.Candidates;
+                        scoreDigit = recognition.ScoreDigit;
                         if (letter is not null)
                         {
                             board = board.SetCell(row, col, letter.Value);
                         }
                     }
 
-                    reads.Add(new CellRead(row, col, letter, confidence, occupied));
+                    reads.Add(new CellRead(row, col, letter, confidence, occupied, candidates, scoreDigit));
                 }
             }
 

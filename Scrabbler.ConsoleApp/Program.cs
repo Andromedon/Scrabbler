@@ -94,9 +94,18 @@ catch (Exception ex)
 }
 
 var board = readResult.Board;
+var dictionary = services.GetRequiredService<IWordDictionary>();
+readResult = new DictionaryBoardRepairer(
+    dictionary,
+    services.GetRequiredService<IReadOnlyDictionary<char, int>>()).Repair(readResult);
+board = readResult.Board;
 console.WriteInfo("Detected board:");
 console.WriteBoard(board);
 console.WriteDetectedOccupiedCells(readResult.Cells);
+if (readResult.Repairs is { Count: > 0 })
+{
+    console.WriteInfo($"OCR repaired: {string.Join(", ", readResult.Repairs.Select(repair => $"{(char)('A' + repair.Column)}{repair.Row + 1}={(repair.From?.ToString() ?? "?")}->{repair.To}"))}");
+}
 
 board = console.ApplyBoardCorrections(board);
 

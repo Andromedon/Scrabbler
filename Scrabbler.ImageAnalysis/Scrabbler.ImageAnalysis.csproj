@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Scrabbler.Data\Scrabbler.Data.csproj" />
     <ProjectReference Include="..\Scrabbler.Domain\Scrabbler.Domain.csproj" />
   </ItemGroup>
 

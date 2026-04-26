@@ -45,9 +45,14 @@ public sealed class TileLetterRecognizer
 
         var selected = SelectCandidate(candidates, scoreDigit);
         var confidence = CalculateConfidence(selected.Score, selected.SecondScore, scoreDigit, selected.Letter);
+        var publicCandidates = candidates
+            .Take(8)
+            .Select(candidate => new LetterCandidateRead(candidate.Letter, candidate.Score))
+            .ToArray();
+        var publicDigit = new ScoreDigitRead(scoreDigit.Digit, scoreDigit.Confidence, scoreDigit.IsReliable);
         return confidence < MinimumConfidence
-            ? new LetterRecognitionResult(null, confidence)
-            : new LetterRecognitionResult(selected.Letter, confidence);
+            ? new LetterRecognitionResult(null, confidence, publicCandidates, publicDigit)
+            : new LetterRecognitionResult(selected.Letter, confidence, publicCandidates, publicDigit);
     }
 
     private static Rectangle Inset(Rectangle bounds, double ratio)
@@ -753,4 +758,8 @@ public sealed class TileLetterRecognizer
     }
 }
 
-public sealed record LetterRecognitionResult(char? Letter, float Confidence);
+public sealed record LetterRecognitionResult(
+    char? Letter,
+    float Confidence,
+    IReadOnlyList<LetterCandidateRead>? Candidates = null,
+    ScoreDigitRead? ScoreDigit = null);

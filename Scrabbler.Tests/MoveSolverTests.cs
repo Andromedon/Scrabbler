@@ -91,6 +91,43 @@ public sealed class MoveSolverTests
     }
 
     [Fact]
+    public void PlacingAllSevenRackTilesAddsBonus()
+    {
+        var solver = SolverForWords("KOTARAS");
+        var board = EmptyBoardWithCenterDoubleWord();
+
+        var moves = solver.FindBestMoves(board, Rack.Parse("KOTARAS"), 10);
+
+        Assert.All(moves, move => Assert.Equal(43, move.Score));
+        Assert.All(moves, move => Assert.Equal(7, move.PlacedTiles.Count));
+    }
+
+    [Fact]
+    public void PlacingFewerThanSevenRackTilesDoesNotAddBonus()
+    {
+        var solver = SolverForWords("KOTARA");
+        var board = EmptyBoardWithCenterDoubleWord();
+
+        var moves = solver.FindBestMoves(board, Rack.Parse("KOTARA"), 10);
+
+        Assert.All(moves, move => Assert.Equal(16, move.Score));
+        Assert.All(moves, move => Assert.Equal(6, move.PlacedTiles.Count));
+    }
+
+    [Fact]
+    public void BlankTileCountsTowardSevenTileBonus()
+    {
+        var solver = SolverForWords("KOTARAS");
+        var board = EmptyBoardWithCenterDoubleWord();
+
+        var moves = solver.FindBestMoves(board, Rack.Parse("?OTARAS"), 10);
+
+        Assert.All(moves, move => Assert.Equal(39, move.Score));
+        Assert.All(moves, move => Assert.Equal(7, move.PlacedTiles.Count));
+        Assert.All(moves, move => Assert.Contains(move.PlacedTiles, tile => tile is { Letter: 'K', IsBlank: true }));
+    }
+
+    [Fact]
     public void ReturnsOnlyRequestedNumberOfBestMovesInStableOrder()
     {
         var solver = SolverForWords("KOT", "TOK", "OK", "TO");
@@ -124,6 +161,7 @@ public sealed class MoveSolverTests
             ['L'] = 2,
             ['O'] = 1,
             ['R'] = 1,
+            ['S'] = 1,
             ['T'] = 2,
             ['Y'] = 2,
             ['Z'] = 1,

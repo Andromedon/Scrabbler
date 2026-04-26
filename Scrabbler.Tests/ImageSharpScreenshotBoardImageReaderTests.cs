@@ -83,6 +83,7 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
     [InlineData("board-real-7295.jpg", 55, "GODY", "ANIMĄ", "DONGA", "SROCZYMI", "PANIE")]
     [InlineData("board-real-7330.jpg", 50, "DLAŃ", "TEGO", "TURA", "BLATY", "SERIA")]
     [InlineData("board-real-7331.jpg", 60, "REJ", "SZKOLONY")]
+    [InlineData("board-real-7367.jpg", 30, "CERO", "DOZA", "STAZIE", "DMIJ")]
     public async Task ReadsRealBoardScreenshotFixtures(string fileName, int minimumOccupiedCells, params string[] expectedWords)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "TestData", fileName);
@@ -97,6 +98,24 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
         {
             Assert.Contains(expectedWord, words);
         }
+    }
+
+    [Fact]
+    public async Task RepairsSingleMissedTileGapInRealBoard7367()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "TestData", "board-real-7367.jpg");
+        var reader = CreateReader(RealBonuses());
+
+        var result = await reader.ReadAsync(path);
+        Assert.Null(result.Board[1, 9].Letter);
+
+        var repaired = new DictionaryBoardRepairer(
+            PolishWordDictionary.FromWords(["ŚRODY"]),
+            RealLetterValues()).Repair(result);
+
+        Assert.Equal('R', repaired.Board[1, 9].Letter);
+        Assert.Contains(repaired.Repairs!, repair => repair is { Row: 1, Column: 9, From: null, To: 'R' });
+        Assert.Contains("ŚRODY", BoardLines(repaired.Board));
     }
 
     [Fact]

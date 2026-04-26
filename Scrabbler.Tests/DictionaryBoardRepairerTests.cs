@@ -52,6 +52,23 @@ public sealed class DictionaryBoardRepairerTests
     }
 
     [Fact]
+    public void FillsSingleUndetectedGapWhenExactlyOneDictionaryWordFits()
+    {
+        var board = EmptyBoard()
+            .SetCell(7, 7, 'Ś')
+            .SetCell(7, 9, 'O')
+            .SetCell(7, 10, 'D')
+            .SetCell(7, 11, 'Y');
+        var result = Result(board);
+        var repairer = Repairer("ŚRODY");
+
+        var repaired = repairer.Repair(result);
+
+        Assert.Equal('R', repaired.Board[7, 8].Letter);
+        Assert.Contains(repaired.Repairs!, repair => repair is { Row: 7, Column: 8, From: null, To: 'R' });
+    }
+
+    [Fact]
     public void RefusesAmbiguousRepairs()
     {
         var board = EmptyBoard()
@@ -147,6 +164,8 @@ public sealed class DictionaryBoardRepairerTests
             ['M'] = 2,
             ['N'] = 1,
             ['O'] = 1,
+            ['R'] = 1,
+            ['Ś'] = 5,
             ['T'] = 2
         };
     }

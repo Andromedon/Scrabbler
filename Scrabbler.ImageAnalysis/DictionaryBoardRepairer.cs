@@ -32,6 +32,7 @@ public sealed class DictionaryBoardRepairer
                 .Concat(readResult.Cells
                     .Where(cell => cell.IsOccupied && cell.Letter is null && board[cell.Row, cell.Column].Letter is null)
                     .Select(cell => FindBestMissingLetterRepair(board, cell)))
+                .Concat(FindBestGapRepairs(board))
                 .Where(candidate => candidate is not null)
                 .Select(candidate => candidate!)
                 .OrderByDescending(candidate => candidate.InvalidWordReduction)
@@ -81,6 +82,119 @@ public sealed class DictionaryBoardRepairer
             .ToArray();
 
         return new BoardReadResult(board, updatedCells, repairs);
+    }
+
+    private IEnumerable<RepairCandidate?> FindBestGapRepairs(Board board)
+    {
+        for (var row = 0; row < Board.Size; row++)
+        {
+            for (var column = 0; column < Board.Size; column++)
+            {
+                if (board[row, column].Letter is not null)
+                {
+                    continue;
+                }
+
+                yield return FindBestGapRepair(board, row, column, Direction.Horizontal);
+                yield return FindBestGapRepair(board, row, column, Direction.Vertical);
+            }
+        }
+    }
+
+    private RepairCandidate? FindBestGapRepair(Board board, int row, int column, Direction direction)
+    {
+        var beforeInvalidCount = CountInvalidWords(board);
+        var before = direction == Direction.Horizontal
+            ? (Row: row, Column: column - 1)
+            : (Row: row - 1, Column: column);
+        var after = direction == Direction.Horizontal
+            ? (Row: row, Column: column + 1)
+            : (Row: row + 1, Column: column);
+        if (!IsOccupied(board, before.Row, before.Column) || !IsOccupied(board, after.Row, after.Column))
+        {
+            return null;
+        }
+
+        var cells = new List<(int Row, int Column, char? Letter)>();
+        var startRow = row;
+        var startColumn = column;
+        while (true)
+        {
+            var previous = direction == Direction.Horizontal
+                ? (Row: startRow, Column: startColumn - 1)
+                : (Row: startRow - 1, Column: startColumn);
+            if (!IsOccupied(board, previous.Row, previous.Column))
+            {
+                break;
+            }
+
+            startRow = previous.Row;
+            startColumn = previous.Column;
+        }
+
+        var currentRow = startRow;
+        var currentColumn = startColumn;
+        var emptyCount = 0;
+        while (Board.IsInside(currentRow, currentColumn))
+        {
+            var gapLetter = currentRow == row && currentColumn == column
+                ? null
+                : board[currentRow, currentColumn].Letter;
+            if (gapLetter is null && (currentRow != row || currentColumn != column))
+            {
+                break;
+            }
+
+            if (gapLetter is null)
+            {
+                emptyCount++;
+            }
+
+            cells.Add((currentRow, currentColumn, gapLetter));
+
+            if (direction == Direction.Horizontal)
+            {
+                currentColumn++;
+            }
+            else
+            {
+                currentRow++;
+            }
+
+            if (emptyCount > 1)
+            {
+                break;
+            }
+        }
+
+        if (emptyCount != 1 || cells.Count <= 2 || !_dictionary.WordsByLength.TryGetValue(cells.Count, out var words))
+        {
+            return null;
+        }
+
+        var matches = words
+            .Where(word => MatchesPattern(word, cells))
+            .Take(2)
+            .ToArray();
+        if (matches.Length != 1)
+        {
+            return null;
+        }
+
+        var letter = matches[0][cells.FindIndex(cell => cell.Row == row && cell.Column == column)];
+        var repairedBoard = board.SetCell(row, column, letter);
+        var affectedWords = BoardWordExtractor.ExtractWordsAt(repairedBoard, row, column);
+        if (affectedWords.Count == 0 || affectedWords.Any(word => !_dictionary.Contains(word.Text)))
+        {
+            return null;
+        }
+
+        var invalidReduction = beforeInvalidCount - CountInvalidWords(repairedBoard);
+        return new RepairCandidate(
+            repairedBoard,
+            [new BoardRepair(row, column, null, letter, $"dictionary: {matches[0]}")],
+            matches[0].Length,
+            Math.Max(1, invalidReduction));
     }
 
     private RepairCandidate? FindBestMissingLetterRepair(Board board, CellRead cell)
@@ -310,6 +424,29 @@ public sealed class DictionaryBoardRepairer
     private int CountInvalidWords(Board board)
     {
         return BoardWordExtractor.ExtractWords(board).Count(word => word.Text.Length > 1 && !_dictionary.Contains(word.Text));
+    }
+
+    private static bool IsOccupied(Board board, int row, int column)
+    {
+        return Board.IsInside(row, column) && board[row, column].Letter is not null;
+    }
+
+    private static bool MatchesPattern(string word, IReadOnlyList<(int Row, int Column, char? Letter)> cells)
+    {
+        if (word.Length != cells.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < word.Length; i++)
+        {
+            if (cells[i].Letter is { } letter && word[i] != letter)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static string WordText(Board board, BoardWord word)

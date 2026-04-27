@@ -38,6 +38,8 @@
     <None Include="TestData\board-real-7330.jpg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="TestData\board-real-7331.jpg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="TestData\board-real-7367.jpg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="TestData\board-real-7392.jpg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="TestData\board-real-7403.jpg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="TestData\board-sample.jpg" CopyToOutputDirectory="PreserveNewest" />
     <None Include="TestData\board-sample-cropped.png" CopyToOutputDirectory="PreserveNewest" />
     <None Include="TestData\all-letters-sample.png" CopyToOutputDirectory="PreserveNewest" />

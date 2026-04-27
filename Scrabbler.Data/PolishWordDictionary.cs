@@ -45,6 +45,24 @@ public sealed class PolishWordDictionary : IWordDictionary
         return Create(snapshot.Words, snapshot.WordsByLength);
     }
 
+    public static bool HasValidCache(string path, string? cacheDirectory = null)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        cacheDirectory ??= Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, ".cache");
+        var source = new FileInfo(path);
+        var cachePath = GetCachePath(cacheDirectory, source.FullName);
+        if (!File.Exists(cachePath))
+        {
+            return false;
+        }
+
+        return HasValidBinaryCacheMetadata(cachePath, source);
+    }
+
     public static PolishWordDictionary FromWords(IEnumerable<string> words)
     {
         var normalized = words
@@ -78,24 +96,17 @@ public sealed class PolishWordDictionary : IWordDictionary
 
         try
         {
+            if (!HasValidBinaryCacheMetadata(cachePath, source))
+            {
+                return null;
+            }
+
             using var stream = File.OpenRead(cachePath);
             using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: false);
-
-            if (reader.ReadInt32() != CacheVersion)
-            {
-                return null;
-            }
-
-            var sourceFullPath = reader.ReadString();
-            var sourceLength = reader.ReadInt64();
-            var sourceLastWriteUtcTicks = reader.ReadInt64();
-
-            if (!StringComparer.Ordinal.Equals(sourceFullPath, source.FullName)
-                || sourceLength != source.Length
-                || sourceLastWriteUtcTicks != source.LastWriteTimeUtc.Ticks)
-            {
-                return null;
-            }
+            _ = reader.ReadInt32();
+            _ = reader.ReadString();
+            _ = reader.ReadInt64();
+            _ = reader.ReadInt64();
 
             var wordsByLength = new Dictionary<int, IReadOnlyList<string>>();
             var words = new HashSet<string>(StringComparer.Ordinal);
@@ -121,6 +132,32 @@ public sealed class PolishWordDictionary : IWordDictionary
         catch
         {
             return null;
+        }
+    }
+
+    private static bool HasValidBinaryCacheMetadata(string cachePath, FileInfo source)
+    {
+        try
+        {
+            using var stream = File.OpenRead(cachePath);
+            using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: false);
+
+            if (reader.ReadInt32() != CacheVersion)
+            {
+                return false;
+            }
+
+            var sourceFullPath = reader.ReadString();
+            var sourceLength = reader.ReadInt64();
+            var sourceLastWriteUtcTicks = reader.ReadInt64();
+
+            return StringComparer.Ordinal.Equals(sourceFullPath, source.FullName)
+                && sourceLength == source.Length
+                && sourceLastWriteUtcTicks == source.LastWriteTimeUtc.Ticks;
+        }
+        catch
+        {
+            return false;
         }
     }
 

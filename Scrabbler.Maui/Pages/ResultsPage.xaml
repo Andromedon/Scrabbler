@@ -4,10 +4,58 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     Title="Results">
-    <Grid Padding="16" RowDefinitions="*,Auto" RowSpacing="12">
-        <ScrollView Grid.Row="0">
-            <Label Text="{Binding ResultsText}" FontFamily="Menlo" FontSize="14" LineBreakMode="WordWrap" />
+    <Grid Padding="16" RowDefinitions="Auto,*,Auto" RowSpacing="12">
+        <Border
+            x:Name="PreviewBoardHost"
+            Grid.Row="0"
+            Padding="0"
+            BackgroundColor="{AppThemeBinding Light=#F7F3EA, Dark=#1F1F1F}"
+            HorizontalOptions="Center"
+            Stroke="{AppThemeBinding Light=#D8D0C1, Dark=#333333}"
+            StrokeThickness="1">
+            <Grid
+                x:Name="PreviewBoardGrid"
+                BindableLayout.ItemsSource="{Binding PreviewBoardCells}"
+                ColumnSpacing="1"
+                RowSpacing="1">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <Button
+                            Grid.Row="{Binding GridRow}"
+                            Grid.Column="{Binding GridColumn}"
+                            BackgroundColor="{Binding BackgroundColor}"
+                            BorderColor="{AppThemeBinding Light=#D9D4CC, Dark=#3A3A3A}"
+                            BorderWidth="0.5"
+                            CornerRadius="2"
+                            FontAttributes="Bold"
+                            FontSize="13"
+                            IsEnabled="False"
+                            MinimumHeightRequest="0"
+                            MinimumWidthRequest="0"
+                            Padding="0"
+                            Text="{Binding Letter}"
+                            TextColor="{Binding TextColor}" />
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </Grid>
+        </Border>
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout BindableLayout.ItemsSource="{Binding ResultItems}" Spacing="8">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <Button
+                            Text="{Binding Summary}"
+                            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectMoveCommand}"
+                            CommandParameter="{Binding .}"
+                            FontFamily="Menlo"
+                            FontSize="13"
+                            HorizontalOptions="Fill"
+                            LineBreakMode="WordWrap"
+                            Padding="10,8" />
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
         </ScrollView>
-        <Button Grid.Row="1" Text="Finish" Command="{Binding FinishCommand}" />
+        <Button Grid.Row="2" Text="Finish" Command="{Binding FinishCommand}" />
     </Grid>
 </ContentPage>

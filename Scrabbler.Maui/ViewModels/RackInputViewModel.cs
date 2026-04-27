@@ -1,4 +1,5 @@
 using System.Windows.Input;
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Scrabbler.Maui.Pages;
 using Scrabbler.Maui.Services;
@@ -25,7 +26,7 @@ public sealed class RackInputViewModel : ObservableObject
     public string RackText
     {
         get => _rackText;
-        set => SetProperty(ref _rackText, value);
+        set => SetProperty(ref _rackText, (value ?? string.Empty).ToUpper(new CultureInfo("pl-PL")));
     }
 
     public string Message

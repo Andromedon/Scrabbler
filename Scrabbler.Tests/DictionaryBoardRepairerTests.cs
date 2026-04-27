@@ -59,7 +59,13 @@ public sealed class DictionaryBoardRepairerTests
             .SetCell(7, 9, 'O')
             .SetCell(7, 10, 'D')
             .SetCell(7, 11, 'Y');
-        var result = Result(board);
+        var result = Result(board, new CellRead(
+            7,
+            8,
+            null,
+            1,
+            false,
+            Visual: new CellVisualRead(0.64, 0, 0.24)));
         var repairer = Repairer("ŚRODY");
 
         var repaired = repairer.Repair(result);
@@ -129,7 +135,14 @@ public sealed class DictionaryBoardRepairerTests
             for (var col = 0; col < Board.Size; col++)
             {
                 var configured = reads.FirstOrDefault(cell => cell.Row == row && cell.Column == col);
-                cells.Add(configured ?? new CellRead(row, col, board[row, col].Letter, 1, board[row, col].Letter is not null));
+                var letter = board[row, col].Letter;
+                cells.Add(configured ?? new CellRead(
+                    row,
+                    col,
+                    letter,
+                    1,
+                    letter is not null,
+                    Visual: letter is null ? null : new CellVisualRead(0.6, 0.04, 0)));
             }
         }
 

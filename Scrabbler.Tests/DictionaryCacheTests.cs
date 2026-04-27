@@ -33,7 +33,9 @@ public sealed class DictionaryCacheTests : IDisposable
         var dictionaryPath = WriteDictionary("ALA", "KOT");
         var messages = new List<string>();
 
+        Assert.False(PolishWordDictionary.HasValidCache(dictionaryPath, cacheDirectory));
         _ = PolishWordDictionary.Load(dictionaryPath, cacheDirectory, messages.Add);
+        Assert.True(PolishWordDictionary.HasValidCache(dictionaryPath, cacheDirectory));
         messages.Clear();
         var dictionary = PolishWordDictionary.Load(dictionaryPath, cacheDirectory, messages.Add);
 
@@ -48,9 +50,11 @@ public sealed class DictionaryCacheTests : IDisposable
         var cacheDirectory = Path.Combine(_directory, "cache");
         var dictionaryPath = WriteDictionary("ALA");
         _ = PolishWordDictionary.Load(dictionaryPath, cacheDirectory);
+        Assert.True(PolishWordDictionary.HasValidCache(dictionaryPath, cacheDirectory));
 
         Thread.Sleep(20);
         File.AppendAllText(dictionaryPath, $"{Environment.NewLine}KOT");
+        Assert.False(PolishWordDictionary.HasValidCache(dictionaryPath, cacheDirectory));
         var messages = new List<string>();
         var dictionary = PolishWordDictionary.Load(dictionaryPath, cacheDirectory, messages.Add);
 

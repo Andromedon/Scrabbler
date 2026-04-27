@@ -7,8 +7,11 @@
     <Grid Padding="24" RowDefinitions="Auto,Auto,Auto,*,Auto">
         <VerticalStackLayout Grid.Row="1" Spacing="14">
             <Entry
+                CharacterSpacing="0"
+                Keyboard="Text"
                 Placeholder="Rack letters (? for blank)"
-                Text="{Binding RackText}" />
+                Text="{Binding RackText}"
+                TextTransform="Uppercase" />
             <Button Text="Solve" Command="{Binding SolveCommand}" />
             <ActivityIndicator IsRunning="{Binding IsSolving}" IsVisible="{Binding IsSolving}" />
             <Label Text="{Binding Message}" TextColor="DarkRed" LineBreakMode="WordWrap" />

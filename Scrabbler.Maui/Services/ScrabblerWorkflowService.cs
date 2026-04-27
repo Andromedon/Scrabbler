@@ -116,8 +116,7 @@ public sealed class ScrabblerWorkflowService
     {
         await _assets.EnsureAsync(cancellationToken);
         var cacheDirectory = Path.Combine(FileSystem.CacheDirectory, "DictionaryCache");
-        return Directory.Exists(cacheDirectory)
-            && Directory.EnumerateFileSystemEntries(cacheDirectory).Any();
+        return PolishWordDictionary.HasValidCache(_assets.DictionaryPath, cacheDirectory);
     }
 
     private async Task EnsureReaderAsync(CancellationToken cancellationToken)
@@ -199,8 +198,7 @@ public sealed class ScrabblerWorkflowService
             var assetResult = await _assets.EnsureAsync(cancellationToken);
             _letterValues ??= LetterValuesLoader.Load(_assets.LetterValuesPath);
             var cacheDirectory = Path.Combine(FileSystem.CacheDirectory, "DictionaryCache");
-            var cacheWasWarm = Directory.Exists(cacheDirectory)
-                && Directory.EnumerateFileSystemEntries(cacheDirectory).Any();
+            var cacheWasWarm = PolishWordDictionary.HasValidCache(_assets.DictionaryPath, cacheDirectory);
             var dictionaryStopwatch = Stopwatch.StartNew();
             _dictionary = await Task.Run(() => PolishWordDictionary.Load(
                 _assets.DictionaryPath,

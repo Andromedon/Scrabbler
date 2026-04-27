@@ -32,7 +32,7 @@ public sealed class DictionaryBoardRepairer
                 .Concat(readResult.Cells
                     .Where(cell => cell.IsOccupied && cell.Letter is null && board[cell.Row, cell.Column].Letter is null)
                     .Select(cell => FindBestMissingLetterRepair(board, cell)))
-                .Concat(FindBestGapRepairs(board))
+                .Concat(FindBestGapRepairs(board, cellsByCoordinate))
                 .Where(candidate => candidate is not null)
                 .Select(candidate => candidate!)
                 .OrderByDescending(candidate => candidate.InvalidWordReduction)
@@ -84,7 +84,9 @@ public sealed class DictionaryBoardRepairer
         return new BoardReadResult(board, updatedCells, repairs);
     }
 
-    private IEnumerable<RepairCandidate?> FindBestGapRepairs(Board board)
+    private IEnumerable<RepairCandidate?> FindBestGapRepairs(
+        Board board,
+        IReadOnlyDictionary<(int Row, int Column), CellRead> cellsByCoordinate)
     {
         for (var row = 0; row < Board.Size; row++)
         {
@@ -95,13 +97,24 @@ public sealed class DictionaryBoardRepairer
                     continue;
                 }
 
-                yield return FindBestGapRepair(board, row, column, Direction.Horizontal);
-                yield return FindBestGapRepair(board, row, column, Direction.Vertical);
+                if (!cellsByCoordinate.TryGetValue((row, column), out var cell)
+                    || !LooksLikeMissedTile(cell))
+                {
+                    continue;
+                }
+
+                yield return FindBestGapRepair(board, row, column, Direction.Horizontal, cellsByCoordinate);
+                yield return FindBestGapRepair(board, row, column, Direction.Vertical, cellsByCoordinate);
             }
         }
     }
 
-    private RepairCandidate? FindBestGapRepair(Board board, int row, int column, Direction direction)
+    private RepairCandidate? FindBestGapRepair(
+        Board board,
+        int row,
+        int column,
+        Direction direction,
+        IReadOnlyDictionary<(int Row, int Column), CellRead> cellsByCoordinate)
     {
         var beforeInvalidCount = CountInvalidWords(board);
         var before = direction == Direction.Horizontal
@@ -173,7 +186,11 @@ public sealed class DictionaryBoardRepairer
         }
 
         var matches = words
-            .Where(word => MatchesPattern(word, cells))
+            .Select(word => BuildGapCandidate(board, cells, word, row, column, cellsByCoordinate, beforeInvalidCount))
+            .Where(candidate => candidate is not null)
+            .Select(candidate => candidate!)
+            .OrderByDescending(candidate => candidate.InvalidWordReduction)
+            .ThenByDescending(candidate => candidate.Score)
             .Take(2)
             .ToArray();
         if (matches.Length != 1)
@@ -181,10 +198,65 @@ public sealed class DictionaryBoardRepairer
             return null;
         }
 
-        var letter = matches[0][cells.FindIndex(cell => cell.Row == row && cell.Column == column)];
-        var repairedBoard = board.SetCell(row, column, letter);
-        var affectedWords = BoardWordExtractor.ExtractWordsAt(repairedBoard, row, column);
-        if (affectedWords.Count == 0 || affectedWords.Any(word => !_dictionary.Contains(word.Text)))
+        return matches[0];
+    }
+
+    private RepairCandidate? BuildGapCandidate(
+        Board board,
+        IReadOnlyList<(int Row, int Column, char? Letter)> cells,
+        string word,
+        int gapRow,
+        int gapColumn,
+        IReadOnlyDictionary<(int Row, int Column), CellRead> cellsByCoordinate,
+        int beforeInvalidCount)
+    {
+        if (word.Length != cells.Count)
+        {
+            return null;
+        }
+
+        var repairedBoard = board;
+        var repairs = new List<BoardRepair>();
+        var score = (double)word.Length;
+        for (var i = 0; i < word.Length; i++)
+        {
+            var cell = cells[i];
+            var expected = word[i];
+            if (cell.Row == gapRow && cell.Column == gapColumn)
+            {
+                repairedBoard = repairedBoard.SetCell(cell.Row, cell.Column, expected);
+                repairs.Add(new BoardRepair(cell.Row, cell.Column, null, expected, $"dictionary: {word}"));
+                score += 0.75;
+                continue;
+            }
+
+            if (cell.Letter == expected)
+            {
+                continue;
+            }
+
+            if (cell.Letter is null
+                || !cellsByCoordinate.TryGetValue((cell.Row, cell.Column), out var read)
+                || !CanSubstituteGapNeighbor(read, cell.Letter.Value, expected, out var optionScore))
+            {
+                return null;
+            }
+
+            repairedBoard = repairedBoard.SetCell(cell.Row, cell.Column, expected);
+            repairs.Add(new BoardRepair(cell.Row, cell.Column, cell.Letter, expected, $"dictionary: {word}"));
+            score += optionScore;
+        }
+
+        if (repairs.Count == 0 || repairs.Count(repair => repair.From is not null) > 1)
+        {
+            return null;
+        }
+
+        var affectedWords = repairs
+            .SelectMany(repair => BoardWordExtractor.ExtractWordsAt(repairedBoard, repair.Row, repair.Column))
+            .Distinct()
+            .ToArray();
+        if (affectedWords.Length == 0 || affectedWords.Any(affected => !_dictionary.Contains(affected.Text)))
         {
             return null;
         }
@@ -192,9 +264,44 @@ public sealed class DictionaryBoardRepairer
         var invalidReduction = beforeInvalidCount - CountInvalidWords(repairedBoard);
         return new RepairCandidate(
             repairedBoard,
-            [new BoardRepair(row, column, null, letter, $"dictionary: {matches[0]}")],
-            matches[0].Length,
+            repairs,
+            score,
             Math.Max(1, invalidReduction));
+    }
+
+    private bool CanSubstituteGapNeighbor(CellRead cell, char currentLetter, char expectedLetter, out double score)
+    {
+        score = 0;
+        if (cell.Confidence >= HighConfidence)
+        {
+            return false;
+        }
+
+        var options = LetterOptions(cell, currentLetter)
+            .Where(option => option.Changed && option.Letter == expectedLetter)
+            .ToArray();
+        if (options.Length == 0)
+        {
+            return false;
+        }
+
+        score = options.Max(option => option.Score);
+        return true;
+    }
+
+    private static bool LooksLikeMissedTile(CellRead cell)
+    {
+        if (cell.Letter is not null)
+        {
+            return false;
+        }
+
+        if (cell.IsOccupied)
+        {
+            return true;
+        }
+
+        return cell.Visual is { OrangeRatio: >= 0.35 };
     }
 
     private RepairCandidate? FindBestMissingLetterRepair(Board board, CellRead cell)

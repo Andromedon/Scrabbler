@@ -119,6 +119,44 @@ public sealed class ImageSharpScreenshotBoardImageReaderTests : IDisposable
     }
 
     [Fact]
+    public async Task DoesNotRepairEmptyBonusSquareGapInRealBoard7392()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "TestData", "board-real-7392.jpg");
+        var reader = CreateReader(RealBonuses());
+
+        var result = await reader.ReadAsync(path);
+        Assert.False(result.Cells.Single(cell => cell is { Row: 6, Column: 8 }).IsOccupied);
+
+        var repaired = new DictionaryBoardRepairer(
+            PolishWordDictionary.FromWords(["STANOWIŁAŚ", "BAKIEM", "SEZON"]),
+            RealLetterValues()).Repair(result);
+
+        Assert.Null(repaired.Board[6, 8].Letter);
+        Assert.DoesNotContain(repaired.Repairs ?? [], repair => repair is { Row: 6, Column: 8 });
+    }
+
+    [Fact]
+    public async Task RepairsMissedTileAndNeighborSubstitutionInRealBoard7403()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "TestData", "board-real-7403.jpg");
+        var reader = CreateReader(RealBonuses());
+
+        var result = await reader.ReadAsync(path);
+        Assert.Equal('O', result.Board[1, 8].Letter);
+        Assert.Null(result.Board[1, 9].Letter);
+
+        var repaired = new DictionaryBoardRepairer(
+            PolishWordDictionary.FromWords(["MĄCIE"]),
+            RealLetterValues()).Repair(result);
+
+        Assert.Equal('C', repaired.Board[1, 8].Letter);
+        Assert.Equal('I', repaired.Board[1, 9].Letter);
+        Assert.Contains("MĄCIE", BoardLines(repaired.Board));
+        Assert.Contains(repaired.Repairs!, repair => repair is { Row: 1, Column: 8, From: 'O', To: 'C' });
+        Assert.Contains(repaired.Repairs!, repair => repair is { Row: 1, Column: 9, From: null, To: 'I' });
+    }
+
+    [Fact]
     public async Task ReadsSampleBoardWithMixedTileColorsAndRedScoreBadge()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "TestData", "board-sample.jpg");

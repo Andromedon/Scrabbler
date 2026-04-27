@@ -59,7 +59,15 @@ public sealed class ImageSharpScreenshotBoardImageReader : IBoardImageReader
                         }
                     }
 
-                    reads.Add(new CellRead(row, col, letter, confidence, occupied, candidates, scoreDigit));
+                    reads.Add(new CellRead(
+                        row,
+                        col,
+                        letter,
+                        confidence,
+                        occupied,
+                        candidates,
+                        scoreDigit,
+                        new CellVisualRead(stats.OrangeRatio, stats.DarkRatio, stats.WhiteRatio)));
                 }
             }
 

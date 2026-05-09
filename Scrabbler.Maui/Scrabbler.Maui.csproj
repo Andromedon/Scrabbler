@@ -13,13 +13,13 @@
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
     <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
-    <AppIcon>appicon</AppIcon>
     <XSAppIconAssets>Assets.xcassets/appicon.appiconset</XSAppIconAssets>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <MtouchLink>None</MtouchLink>
-    <UseInterpreter>true</UseInterpreter>
+    <MtouchUseLlvm>false</MtouchUseLlvm>
+    <NoSymbolStrip>true</NoSymbolStrip>
     <EnableAssemblyILStripping>false</EnableAssemblyILStripping>
   </PropertyGroup>
 
@@ -52,6 +52,17 @@
     <Exec Command="/usr/bin/xattr -cr &quot;$(AppBundleDir)&quot;" />
   </Target>
 
+  <Target Name="CopyLinkedAssembliesToIosReleaseBundle"
+          AfterTargets="CopyFilesToPublishDirectory"
+          Condition="'$(TargetFramework)' == 'net10.0-ios' and '$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' == 'ios-arm64'">
+    <ItemGroup>
+      <_LinkedAssembly Include="$(DeviceSpecificIntermediateOutputPath)linked/**/*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_LinkedAssembly)"
+          DestinationFiles="@(_LinkedAssembly->'$(_AppBundlePath)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="false" />
+  </Target>
+
   <Target Name="PatchIOSAppIconManifest" BeforeTargets="_CodesignAppBundle" Condition="'$(TargetFramework)' == 'net10.0-ios' and Exists('$(AppBundleDir)/Info.plist')">
     <Exec Command="/usr/libexec/PlistBuddy -c &quot;Delete :CFBundleIcons&quot; &quot;$(AppBundleDir)/Info.plist&quot;" IgnoreExitCode="true" />
     <Exec Command="/usr/libexec/PlistBuddy -c &quot;Add :CFBundleIcons dict&quot; &quot;$(AppBundleDir)/Info.plist&quot;" />
@@ -79,6 +90,7 @@
       <BuildInfoLine Include="    internal static class BuildInfo" />
       <BuildInfoLine Include="    {" />
       <BuildInfoLine Include="        public const string Timestamp = &quot;$(BuildTimestampUtc)&quot;%3B" />
+      <BuildInfoLine Include="        public const string Configuration = &quot;$(Configuration)&quot;%3B" />
       <BuildInfoLine Include="    }" />
       <BuildInfoLine Include="}" />
     </ItemGroup>

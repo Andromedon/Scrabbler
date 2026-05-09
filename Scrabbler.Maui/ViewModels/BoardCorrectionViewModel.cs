@@ -19,7 +19,9 @@ public sealed record BoardCellViewModel(
     bool IsHeader,
     bool IsEnabled,
     string BackgroundColor,
-    string TextColor);
+    string TextColor,
+    string BorderColor,
+    double BorderWidth);
 
 public sealed class BoardCorrectionViewModel : ObservableObject
 {
@@ -266,8 +268,12 @@ public sealed class BoardCorrectionViewModel : ObservableObject
 
         var cells = new List<BoardCellViewModel>((Board.Size + 1) * (Board.Size + 1))
         {
-            new(0, 0, string.Empty, string.Empty, string.Empty, false, true, false, "#D8D0C1", "#151515")
+            new(0, 0, string.Empty, string.Empty, string.Empty, false, true, false, "#D8D0C1", "#151515", "#D8D0C1", 0.5)
         };
+        var repairedCells = _session.Repairs
+            .Select(repair => (repair.Row, repair.Column))
+            .ToHashSet();
+
         for (var column = 0; column < Board.Size; column++)
         {
             cells.Add(new BoardCellViewModel(
@@ -280,7 +286,9 @@ public sealed class BoardCorrectionViewModel : ObservableObject
                 true,
                 false,
                 "#D8D0C1",
-                "#151515"));
+                "#151515",
+                "#D8D0C1",
+                0.5));
         }
 
         for (var row = 0; row < Board.Size; row++)
@@ -295,13 +303,16 @@ public sealed class BoardCorrectionViewModel : ObservableObject
                 true,
                 false,
                 "#D8D0C1",
-                "#151515"));
+                "#151515",
+                "#D8D0C1",
+                0.5));
 
             for (var column = 0; column < Board.Size; column++)
             {
                 var coordinate = Coordinate(row, column);
                 var letter = board[row, column].Letter?.ToString() ?? string.Empty;
                 var isOccupied = !string.IsNullOrEmpty(letter);
+                var isRepaired = repairedCells.Contains((row, column));
                 cells.Add(new BoardCellViewModel(
                     row + 1,
                     column + 1,
@@ -311,8 +322,10 @@ public sealed class BoardCorrectionViewModel : ObservableObject
                     isOccupied,
                     false,
                     true,
-                    isOccupied ? "#F2B247" : "#EEECEA",
-                    "#151515"));
+                    isRepaired ? "#FFE066" : isOccupied ? "#F2B247" : "#EEECEA",
+                    "#151515",
+                    isRepaired ? "#C0392B" : "#D9D4CC",
+                    isRepaired ? 2.2 : 0.5));
             }
         }
 
@@ -327,7 +340,7 @@ public sealed class BoardCorrectionViewModel : ObservableObject
             var coordinate = Coordinate(repair.Row, repair.Column);
             items.Add(new QuickCorrectionItem(
                 $"{coordinate} {(repair.From?.ToString() ?? "?")}→{repair.To}",
-                $"{coordinate}={repair.To}"));
+                $"{coordinate}="));
         }
 
         return items;

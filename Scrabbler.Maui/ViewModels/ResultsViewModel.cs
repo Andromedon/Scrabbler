@@ -76,17 +76,17 @@ public sealed class ResultsViewModel : ObservableObject
         var placed = move?.PlacedTiles.ToDictionary(tile => (tile.Row, tile.Column)) ?? new Dictionary<(int Row, int Column), PlacedTile>();
         var cells = new List<BoardCellViewModel>((Board.Size + 1) * (Board.Size + 1))
         {
-            new(0, 0, string.Empty, string.Empty, string.Empty, false, true, false, "#D8D0C1", "#151515")
+            new(0, 0, string.Empty, string.Empty, string.Empty, false, true, false, "#D8D0C1", "#151515", "#D8D0C1", 0.5)
         };
 
         for (var column = 0; column < Board.Size; column++)
         {
-            cells.Add(new BoardCellViewModel(0, column + 1, string.Empty, ((char)('A' + column)).ToString(), string.Empty, false, true, false, "#D8D0C1", "#151515"));
+            cells.Add(new BoardCellViewModel(0, column + 1, string.Empty, ((char)('A' + column)).ToString(), string.Empty, false, true, false, "#D8D0C1", "#151515", "#D8D0C1", 0.5));
         }
 
         for (var row = 0; row < Board.Size; row++)
         {
-            cells.Add(new BoardCellViewModel(row + 1, 0, string.Empty, (row + 1).ToString(), string.Empty, false, true, false, "#D8D0C1", "#151515"));
+            cells.Add(new BoardCellViewModel(row + 1, 0, string.Empty, (row + 1).ToString(), string.Empty, false, true, false, "#D8D0C1", "#151515", "#D8D0C1", 0.5));
             for (var column = 0; column < Board.Size; column++)
             {
                 var isPlaced = placed.TryGetValue((row, column), out var placedTile);
@@ -104,7 +104,9 @@ public sealed class ResultsViewModel : ObservableObject
                     false,
                     false,
                     isPlaced ? "#3FA86B" : occupied ? "#F2B247" : "#EEECEA",
-                    "#151515"));
+                    "#151515",
+                    isPlaced ? "#1F7A49" : "#D9D4CC",
+                    isPlaced ? 1.6 : 0.5));
             }
         }
 

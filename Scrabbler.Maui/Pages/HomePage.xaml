@@ -15,7 +15,7 @@
         </VerticalStackLayout>
         <Label
             Grid.Row="1"
-            Text="{Binding BuildTimestamp}"
+            Text="{Binding BuildFooter}"
             FontSize="12"
             HorizontalTextAlignment="Center"
             Opacity="0.7" />

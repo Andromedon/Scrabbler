@@ -52,7 +52,7 @@ public sealed class HomeViewModel : ObservableObject
         private set => SetProperty(ref _isBusy, value);
     }
 
-    public string BuildTimestamp => $"Build: {BuildInfo.Timestamp}";
+    public string BuildFooter => $"Build: {BuildInfo.Timestamp} ({BuildInfo.Configuration})";
 
     public ICommand LoadFromGalleryCommand { get; }
 

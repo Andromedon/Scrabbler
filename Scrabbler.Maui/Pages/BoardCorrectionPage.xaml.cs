@@ -21,6 +21,8 @@ public partial class BoardCorrectionPage : ContentPage
         {
             await Task.Delay(50);
             CorrectionsEntry.Focus();
+            CorrectionsEntry.CursorPosition = CorrectionsEntry.Text?.Length ?? 0;
+            CorrectionsEntry.SelectionLength = 0;
         });
     }
 

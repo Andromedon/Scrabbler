@@ -12,7 +12,7 @@ struct ResultsView: View {
                     .frame(maxHeight: 260)
             }
 
-            List(state.results, id: \.word) { move in
+            List(state.results, id: \.stableID) { move in
                 Button {
                     state.selectedMove = move
                 } label: {
@@ -54,7 +54,7 @@ struct MovePreviewView: View {
     let move: Move
 
     var body: some View {
-        BoardGridView(board: previewBoard()) { _, _ in }
+        BoardGridView(board: previewBoard(), highlightedCells: highlightedCells()) { _, _ in }
     }
 
     private func previewBoard() -> Board {
@@ -63,5 +63,18 @@ struct MovePreviewView: View {
             board = board.setCell(row: tile.row, column: tile.column, letter: tile.letter, isBlank: tile.isBlank)
         }
         return board
+    }
+
+    private func highlightedCells() -> Set<String> {
+        Set(move.placedTiles.map { BoardGridView.key(row: $0.row, column: $0.column) })
+    }
+}
+
+private extension Move {
+    var stableID: String {
+        let placed = placedTiles
+            .map { "\($0.row):\($0.column):\($0.letter):\($0.isBlank)" }
+            .joined(separator: "|")
+        return "\(word)-\(row)-\(column)-\(direction.rawValue)-\(score)-\(placed)"
     }
 }

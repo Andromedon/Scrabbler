@@ -7,10 +7,33 @@ struct BoardCorrectionView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            BoardGridView(board: state.board, onTapCell: { row, column in
-                state.appendCorrection(row: row, column: column)
-                correctionsFocused = true
-            })
+            BoardGridView(
+                board: state.board,
+                highlightedCells: state.autoRepairedCellKeys,
+                onTapCell: { row, column in
+                    state.appendCorrection(row: row, column: column)
+                    correctionsFocused = true
+                }
+            )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Detected tiles: \(state.detectedTileCount)")
+                    .font(.footnote.weight(.semibold))
+                if !state.autoRepairStatus.isEmpty {
+                    Text("Auto-corrected: \(state.autoRepairStatus)")
+                        .font(.footnote)
+                        .foregroundStyle(.green)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !state.boardValidationStatus.isEmpty {
+                    Text(state.boardValidationStatus)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
 
             TextField("A1=Ł, H8=?, J10=.", text: $state.correctionsText, axis: .vertical)
                 .textInputAutocapitalization(.characters)
@@ -38,7 +61,18 @@ struct BoardCorrectionView: View {
 
 struct BoardGridView: View {
     let board: ScrabblerKit.Board
+    let highlightedCells: Set<String>
     let onTapCell: (Int, Int) -> Void
+
+    init(
+        board: ScrabblerKit.Board,
+        highlightedCells: Set<String> = [],
+        onTapCell: @escaping (Int, Int) -> Void
+    ) {
+        self.board = board
+        self.highlightedCells = highlightedCells
+        self.onTapCell = onTapCell
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -65,10 +99,11 @@ struct BoardGridView: View {
                             Button {
                                 onTapCell(row, column)
                             } label: {
+                                let isHighlighted = highlightedCells.contains(Self.key(row: row, column: column))
                                 ZStack {
                                     Rectangle()
-                                        .fill(board[row, column].letter == nil ? Color(.secondarySystemBackground) : Color.orange.opacity(0.85))
-                                        .border(.white, width: 1)
+                                        .fill(fillColor(row: row, column: column, highlighted: isHighlighted))
+                                        .border(isHighlighted ? Color.accentColor : Color.white, width: isHighlighted ? 2 : 1)
                                     Text(board[row, column].letter.map(String.init) ?? "")
                                         .font(.system(size: max(10, cellSize * 0.48), weight: .bold))
                                         .foregroundStyle(.primary)
@@ -85,5 +120,16 @@ struct BoardGridView: View {
         }
         .aspectRatio(1, contentMode: .fit)
         .padding(.horizontal, 8)
+    }
+
+    private func fillColor(row: Int, column: Int, highlighted: Bool) -> Color {
+        if highlighted {
+            return Color.green.opacity(0.75)
+        }
+        return board[row, column].letter == nil ? Color(.secondarySystemBackground) : Color.orange.opacity(0.85)
+    }
+
+    static func key(row: Int, column: Int) -> String {
+        "\(row):\(column)"
     }
 }

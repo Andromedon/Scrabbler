@@ -18,6 +18,10 @@ final class AppState: ObservableObject {
     @Published var rackText = ""
     @Published var results: [Move] = []
     @Published var selectedMove: Move?
+    @Published var detectedTileCount = 0
+    @Published var boardValidationStatus = ""
+    @Published var autoRepairStatus = ""
+    @Published var autoRepairedCellKeys: Set<String> = []
     @Published var isBusy = false
     @Published var status = ""
     @Published var dictionaryStatus = ""
@@ -27,8 +31,10 @@ final class AppState: ObservableObject {
     private let bonuses: [[BonusType]]
     private let reader: BoardImageReading
     private let letterValues: [Character: Int]
+    private var dictionary: PolishWordDictionary?
     private var solver: MoveSolver?
     private var solverLoadTask: Task<SolverLoadResult, Error>?
+    private var lastCellReads: [CellRead] = []
 
     init() {
         let loadedBonuses = (try? BundledDataLoader.loadBonusLayout()) ??
@@ -64,10 +70,19 @@ final class AppState: ObservableObject {
             try data.write(to: url, options: .atomic)
             let result = try await reader.readBoard(from: url, bonuses: bonuses)
             board = result.board
+            lastCellReads = result.cells
             correctionsText = ""
+            applyDictionaryRepairsIfPossible()
+            detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
+            refreshBoardValidation()
             screen = .boardCorrection
         } catch {
             board = Board(bonuses: bonuses)
+            lastCellReads = []
+            detectedTileCount = 0
+            autoRepairStatus = ""
+            autoRepairedCellKeys = []
+            boardValidationStatus = "Board could not be read automatically."
             screen = .boardCorrection
             errorMessage = error.localizedDescription
         }
@@ -77,6 +92,10 @@ final class AppState: ObservableObject {
         do {
             board = try BoardCorrectionParser.applyCorrections(to: board, input: correctionsText)
             correctionsText = ""
+            detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
+            autoRepairStatus = ""
+            autoRepairedCellKeys = []
+            refreshBoardValidation()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -129,6 +148,11 @@ final class AppState: ObservableObject {
         rackText = ""
         results = []
         selectedMove = nil
+        detectedTileCount = 0
+        autoRepairStatus = ""
+        autoRepairedCellKeys = []
+        boardValidationStatus = ""
+        lastCellReads = []
         screen = .home
     }
 
@@ -141,6 +165,7 @@ final class AppState: ObservableObject {
             let cacheDirectory = try dictionaryCacheDirectory()
             let loaded = try BundledDataLoader.loadDictionaryWithCache(cacheDirectory: cacheDirectory)
             return SolverLoadResult(
+                dictionary: loaded.dictionary,
                 solver: MoveSolver(dictionary: loaded.dictionary, letterValues: values),
                 sourceKind: loaded.sourceKind,
                 usedCache: loaded.usedCache
@@ -151,11 +176,15 @@ final class AppState: ObservableObject {
         Task {
             do {
                 let loaded = try await task.value
+                dictionary = loaded.dictionary
                 solver = loaded.solver
                 isDictionaryReady = true
                 dictionaryStatus = loaded.statusText
+                applyDictionaryRepairsIfPossible()
+                refreshBoardValidation()
             } catch {
                 let fallback = PolishWordDictionary.fromWords(["ALA", "KOT", "DOM"])
+                dictionary = fallback
                 solver = MoveSolver(dictionary: fallback, letterValues: values)
                 isDictionaryReady = true
                 dictionaryStatus = "Fallback dictionary loaded"
@@ -175,14 +204,78 @@ final class AppState: ObservableObject {
         }
 
         let loaded = try await solverLoadTask.value
+        dictionary = loaded.dictionary
         solver = loaded.solver
         isDictionaryReady = true
         dictionaryStatus = loaded.statusText
+        applyDictionaryRepairsIfPossible()
+        refreshBoardValidation()
         return loaded.solver
+    }
+
+    private func applyDictionaryRepairsIfPossible() {
+        guard let dictionary, !board.isEmpty, !lastCellReads.isEmpty else {
+            return
+        }
+
+        let repaired = DictionaryBoardRepairer(dictionary: dictionary, letterValues: letterValues)
+            .repair(BoardReadResult(board: board, cells: lastCellReads))
+        guard !repaired.appliedRepairs.isEmpty else {
+            return
+        }
+
+        board = repaired.board
+        lastCellReads = repaired.cells
+        autoRepairedCellKeys = Set(repaired.appliedRepairs.map { Self.cellKey(row: $0.row, column: $0.column) })
+        autoRepairStatus = repaired.appliedRepairs
+            .map { repair in
+                let from = repair.originalLetter.map(String.init) ?? "."
+                return "\(coordinate(repair.row, repair.column)) \(from)→\(repair.repairedLetter)"
+            }
+            .joined(separator: ", ")
+    }
+
+    private func refreshBoardValidation() {
+        guard !board.isEmpty else {
+            boardValidationStatus = ""
+            return
+        }
+
+        guard let dictionary else {
+            boardValidationStatus = "Board validation waits for dictionary."
+            return
+        }
+
+        let words = BoardWordExtractor.extractWords(from: board)
+        guard !words.isEmpty else {
+            boardValidationStatus = "No complete board words detected yet."
+            return
+        }
+
+        let invalidWords = words.filter { !dictionary.contains($0.text) }
+        if invalidWords.isEmpty {
+            boardValidationStatus = "All detected board words are in the dictionary."
+        } else {
+            let preview = invalidWords
+                .prefix(8)
+                .map { "\($0.text) \(coordinate($0.coordinates[0].row, $0.coordinates[0].column))" }
+                .joined(separator: ", ")
+            let suffix = invalidWords.count > 8 ? "…" : ""
+            boardValidationStatus = "Check words: \(preview)\(suffix)"
+        }
+    }
+
+    private func coordinate(_ row: Int, _ column: Int) -> String {
+        "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
+    }
+
+    private static func cellKey(row: Int, column: Int) -> String {
+        "\(row):\(column)"
     }
 }
 
 private struct SolverLoadResult: Sendable {
+    let dictionary: PolishWordDictionary
     let solver: MoveSolver
     let sourceKind: DictionarySourceKind
     let usedCache: Bool

@@ -25,7 +25,8 @@ The app picks the newest image in the fixed input directory, detects likely occu
 - `Scrabbler.Input` contains reusable input/file type and Google Drive abstractions.
 - `Scrabbler.Assets` contains shared JSON configuration data and OCR letter samples.
 - `Scrabbler.ConsoleApp` is the current executable host. It keeps console UI, configuration, desktop Google Drive/local input implementations, and local ignored files.
-- `Scrabbler.Maui` is the first iOS .NET MAUI host. It keeps the console-like flow with gallery/Drive image input, text board corrections, rack entry, and solver results.
+- `Scrabbler.Maui` is the iOS .NET MAUI host now branded as `Scrabbler NET`. It keeps the console-like flow with gallery/Drive image input, text board corrections, rack entry, and solver results.
+- `Scrabbler.iOS` contains the new native SwiftUI iOS app named `Scrabbler` plus the Swift Package `ScrabblerKit` for the native port of reusable domain, data, solver, and image-analysis contracts.
 
 ## Google Drive Input
 
@@ -50,7 +51,7 @@ The first Google Drive run opens a browser for Google consent. Later runs reuse 
 
 ## iOS MAUI App
 
-The mobile app intentionally follows the console flow: Home, board correction, rack input, results, then Finish back to Home.
+The MAUI app is branded as `Scrabbler NET` and uses bundle id `com.andromedon.scrabblernet`, so it can be installed beside the native Swift app.
 
 ```bash
 dotnet build Scrabbler.Maui/Scrabbler.Maui.csproj -f net10.0-ios
@@ -66,6 +67,17 @@ For Google Drive on iOS, add ignored local files:
 Use `Scrabbler.Maui/Resources/Raw/google-drive-settings.sample.json` as the folder-id template. The MAUI app reuses the same newest-supported-image selection logic as the console app. For realistic solving, keep `Scrabbler.ConsoleApp/Data/dictionary-pl.txt` locally; the MAUI project bundles it when present and falls back to the tiny sample dictionary otherwise.
 
 For Google Drive on iOS, prefer the Google-generated iOS plist in `Scrabbler.Maui/Resources/Raw/google-drive-ios-client.plist`. The app uses that file's `REVERSED_CLIENT_ID` as the callback scheme, for example `com.googleusercontent.apps.11447514840-baio9i12tr0ie8rvr31n2bvpavl8l7kd:/oauth2redirect`.
+
+## Native iOS App
+
+The native app lives in `Scrabbler.iOS`, is named `Scrabbler`, and uses bundle id `com.andromedon.scrabbler`. It is intentionally local-photo-only; Google Drive stays out of the Swift app.
+
+```bash
+swift test --package-path Scrabbler.iOS/ScrabblerKit
+xcodebuild -project Scrabbler.iOS/Scrabbler.xcodeproj -scheme Scrabbler -destination generic/platform=iOS CODE_SIGNING_ALLOWED=NO build
+```
+
+`ScrabblerKit` currently ports the reusable board/rack/correction parser, dictionary loading, board word extraction, and exact solver/scoring behavior to Swift with XCTest-style Swift Testing coverage. The native OCR entry point is scaffolded as `NativeBoardImageReader`; the pixel recognizer and dictionary repair algorithm still need to be ported from `Scrabbler.ImageAnalysis` before the Swift app reaches full OCR parity.
 
 ## Corrections
 

@@ -1,0 +1,12 @@
+# Small sample dictionary for local smoke tests.
+# Copy or replace this file as dictionary-pl.txt with a full UTF-8 Polish word list.
+ALA
+ALE
+BLAT
+KOT
+KOTA
+OR
+PAT
+RODNY
+TAK
+ŻAR

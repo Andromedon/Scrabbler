@@ -42,7 +42,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.andromedon.scrabbler</string>
+			<string>com.andromedon.scrabblernet</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.googleusercontent.apps.11447514840-baio9i12tr0ie8rvr31n2bvpavl8l7kd</string>

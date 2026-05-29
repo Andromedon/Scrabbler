@@ -2,6 +2,10 @@
 bin/
 obj/
 
+# Swift build output
+.build/
+.swiftpm/
+
 # Local generated cache
 Scrabbler.ConsoleApp/Cache/
 

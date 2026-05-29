@@ -18,8 +18,8 @@ internal static partial class ProvisioningProfileInfo
             return "Provisioning expires: unavailable";
         }
 
-        var local = expiration.Value.ToLocalTime();
-        return $"Provisioning expires: {local:yyyy-MM-dd HH:mm}";
+        var utc = expiration.Value.ToUniversalTime();
+        return $"Provisioning expires: {utc:yyyy-MM-dd HH:mm 'UTC'}";
     }
 
     private static DateTimeOffset? TryGetExpirationDate()

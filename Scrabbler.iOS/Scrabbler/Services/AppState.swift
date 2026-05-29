@@ -21,27 +21,26 @@ final class AppState: ObservableObject {
     @Published var isBusy = false
     @Published var status = ""
     @Published var dictionaryStatus = ""
+    @Published var isDictionaryReady = false
     @Published var errorMessage: String?
 
     private let bonuses: [[BonusType]]
     private let reader: BoardImageReading
-    private let dictionary: PolishWordDictionary
-    private let solver: MoveSolver
+    private let letterValues: [Character: Int]
+    private var solver: MoveSolver?
+    private var solverLoadTask: Task<SolverLoadResult, Error>?
 
     init() {
         let loadedBonuses = (try? BundledDataLoader.loadBonusLayout()) ??
             Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size)
-        let hasFullDictionary = BundledDataLoader.hasFullDictionary()
-        let loadedDictionary = (try? BundledDataLoader.loadDictionary()) ??
-            PolishWordDictionary.fromWords(["ALA", "KOT", "DOM"])
         let loadedValues = (try? BundledDataLoader.loadLetterValues()) ?? [:]
 
         self.bonuses = loadedBonuses
         self.board = Board(bonuses: loadedBonuses)
         self.reader = NativeBoardImageReader()
-        self.dictionary = loadedDictionary
-        self.solver = MoveSolver(dictionary: loadedDictionary, letterValues: loadedValues)
-        self.dictionaryStatus = hasFullDictionary ? "Full dictionary loaded" : "Sample dictionary loaded"
+        self.letterValues = loadedValues
+        self.dictionaryStatus = "Dictionary not loaded"
+        startDictionaryLoad()
     }
 
     func loadPhoto(_ item: PhotosPickerItem?) async {
@@ -99,7 +98,11 @@ final class AppState: ObservableObject {
         Task {
             do {
                 let rack = try Rack.parse(rackText)
-                let moves = try solver.findBestMoves(board: board, rack: rack, limit: 50)
+                let loadedSolver = try await solverForUse()
+                let currentBoard = board
+                let moves = try await Task.detached {
+                    try loadedSolver.findBestMoves(board: currentBoard, rack: rack, limit: 50)
+                }.value
                 await MainActor.run {
                     results = moves.sorted { lhs, rhs in
                         if lhs.score != rhs.score { return lhs.score > rhs.score }
@@ -128,4 +131,80 @@ final class AppState: ObservableObject {
         selectedMove = nil
         screen = .home
     }
+
+    private func startDictionaryLoad() {
+        guard solverLoadTask == nil else { return }
+        dictionaryStatus = "Loading dictionary..."
+
+        let values = letterValues
+        let task = Task.detached {
+            let cacheDirectory = try dictionaryCacheDirectory()
+            let loaded = try BundledDataLoader.loadDictionaryWithCache(cacheDirectory: cacheDirectory)
+            return SolverLoadResult(
+                solver: MoveSolver(dictionary: loaded.dictionary, letterValues: values),
+                sourceKind: loaded.sourceKind,
+                usedCache: loaded.usedCache
+            )
+        }
+        solverLoadTask = task
+
+        Task {
+            do {
+                let loaded = try await task.value
+                solver = loaded.solver
+                isDictionaryReady = true
+                dictionaryStatus = loaded.statusText
+            } catch {
+                let fallback = PolishWordDictionary.fromWords(["ALA", "KOT", "DOM"])
+                solver = MoveSolver(dictionary: fallback, letterValues: values)
+                isDictionaryReady = true
+                dictionaryStatus = "Fallback dictionary loaded"
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func solverForUse() async throws -> MoveSolver {
+        if let solver {
+            return solver
+        }
+
+        startDictionaryLoad()
+        guard let solverLoadTask else {
+            throw ScrabblerError.emptyDictionary
+        }
+
+        let loaded = try await solverLoadTask.value
+        solver = loaded.solver
+        isDictionaryReady = true
+        dictionaryStatus = loaded.statusText
+        return loaded.solver
+    }
+}
+
+private struct SolverLoadResult: Sendable {
+    let solver: MoveSolver
+    let sourceKind: DictionarySourceKind
+    let usedCache: Bool
+
+    var statusText: String {
+        switch (sourceKind, usedCache) {
+        case (.full, true):
+            "Full dictionary loaded from cache"
+        case (.full, false):
+            "Full dictionary loaded and cached"
+        case (.sample, _):
+            "Sample dictionary loaded"
+        }
+    }
+}
+
+private func dictionaryCacheDirectory() throws -> URL {
+    let base = try FileManager.default.url(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask,
+        appropriateFor: nil,
+        create: true
+    )
+    return base.appendingPathComponent("Scrabbler/DictionaryCache", isDirectory: true)
 }

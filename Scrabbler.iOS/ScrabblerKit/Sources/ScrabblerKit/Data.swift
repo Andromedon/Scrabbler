@@ -49,6 +49,36 @@ public final class PolishWordDictionary: WordDictionary, @unchecked Sendable {
         return PolishWordDictionary(words: values, wordsByLength: groupWordsByLength(values))
     }
 
+    public static func loadCached(from url: URL, cacheDirectory: URL) throws -> DictionaryLoadResult {
+        let source = try DictionarySourceMetadata(url: url)
+        let cacheURL = try DictionaryCache.cacheURL(for: source, cacheDirectory: cacheDirectory)
+
+        if let cached = try DictionaryCache.read(from: cacheURL, matching: source) {
+            return DictionaryLoadResult(
+                dictionary: PolishWordDictionary.fromWordsByLength(cached.wordsByLength),
+                sourceKind: .full,
+                usedCache: true
+            )
+        }
+
+        let dictionary = try load(from: url)
+        try DictionaryCache.write(dictionary: dictionary, source: source, to: cacheURL)
+        return DictionaryLoadResult(dictionary: dictionary, sourceKind: .full, usedCache: false)
+    }
+
+    static func fromWordsByLength(_ wordsByLength: [Int: [String]]) -> PolishWordDictionary {
+        var normalized = Set<String>()
+        var grouped: [Int: [String]] = [:]
+        for (length, words) in wordsByLength {
+            let values = words.map(PolishAlphabet.normalizeWord).filter(isUsableWord).sorted()
+            if !values.isEmpty {
+                grouped[length] = values
+                normalized.formUnion(values)
+            }
+        }
+        return PolishWordDictionary(words: normalized, wordsByLength: grouped)
+    }
+
     public func contains(_ word: String) -> Bool {
         words.contains(PolishAlphabet.normalizeWord(word))
     }
@@ -64,6 +94,79 @@ public final class PolishWordDictionary: WordDictionary, @unchecked Sendable {
     private static func groupWordsByLength(_ words: Set<String>) -> [Int: [String]] {
         Dictionary(grouping: words, by: \.count)
             .mapValues { $0.sorted() }
+    }
+}
+
+public enum DictionarySourceKind: String, Sendable {
+    case full
+    case sample
+}
+
+public struct DictionaryLoadResult: Sendable {
+    public let dictionary: PolishWordDictionary
+    public let sourceKind: DictionarySourceKind
+    public let usedCache: Bool
+}
+
+private struct DictionarySourceMetadata: Codable, Equatable {
+    let path: String
+    let size: UInt64
+    let modificationTime: TimeInterval
+
+    init(url: URL) throws {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        self.path = url.path
+        self.size = (attributes[.size] as? NSNumber)?.uint64Value ?? 0
+        self.modificationTime = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+    }
+}
+
+private struct DictionaryCachePayload: Codable {
+    let version: Int
+    let source: DictionarySourceMetadata
+    let wordsByLength: [String: [String]]
+}
+
+private enum DictionaryCache {
+    private static let version = 1
+
+    static func cacheURL(for source: DictionarySourceMetadata, cacheDirectory: URL) throws -> URL {
+        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        let digest = SHA256.hash(data: Data(source.path.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return cacheDirectory.appendingPathComponent("dictionary-\(digest).plist")
+    }
+
+    static func read(from url: URL, matching source: DictionarySourceMetadata) throws -> DictionaryCachePayload? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let data = try Data(contentsOf: url)
+        let payload = try PropertyListDecoder().decode(DictionaryCachePayload.self, from: data)
+        guard payload.version == version, payload.source == source else {
+            return nil
+        }
+        return payload
+    }
+
+    static func write(dictionary: PolishWordDictionary, source: DictionarySourceMetadata, to url: URL) throws {
+        let grouped = Dictionary(uniqueKeysWithValues: dictionary.wordsByLength.map { length, words in
+            (String(length), words)
+        })
+        let payload = DictionaryCachePayload(version: version, source: source, wordsByLength: grouped)
+        let encoder = PropertyListEncoder()
+        encoder.outputFormat = .binary
+        let data = try encoder.encode(payload)
+        try data.write(to: url, options: .atomic)
+    }
+}
+
+private extension PolishWordDictionary {
+    static func fromWordsByLength(_ cached: [String: [String]]) -> PolishWordDictionary {
+        let grouped = Dictionary(uniqueKeysWithValues: cached.compactMap { key, words -> (Int, [String])? in
+            guard let length = Int(key) else { return nil }
+            return (length, words)
+        })
+        return fromWordsByLength(grouped)
     }
 }
 
@@ -107,6 +210,19 @@ public enum BundledDataLoader {
         }
 
         return try loadSampleDictionary(bundle: resolvedBundle)
+    }
+
+    public static func loadDictionaryWithCache(cacheDirectory: URL, bundle: Bundle? = nil) throws -> DictionaryLoadResult {
+        let resolvedBundle = bundle ?? .module
+        if let fullDictionary = optionalResourceURL("dictionary-pl", extension: "txt", bundle: resolvedBundle) {
+            return try PolishWordDictionary.loadCached(from: fullDictionary, cacheDirectory: cacheDirectory)
+        }
+
+        return DictionaryLoadResult(
+            dictionary: try loadSampleDictionary(bundle: resolvedBundle),
+            sourceKind: .sample,
+            usedCache: false
+        )
     }
 
     public static func hasFullDictionary(bundle: Bundle? = nil) -> Bool {

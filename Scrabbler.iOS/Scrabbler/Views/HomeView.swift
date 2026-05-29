@@ -25,9 +25,14 @@ struct HomeView: View {
                 ProgressView(state.status)
             }
 
-            Text(state.dictionaryStatus)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            VStack(spacing: 6) {
+                if !state.isDictionaryReady {
+                    ProgressView()
+                }
+                Text(state.dictionaryStatus)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
         }

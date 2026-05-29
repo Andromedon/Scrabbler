@@ -5,6 +5,7 @@ obj/
 # Swift build output
 .build/
 .swiftpm/
+Scrabbler.iOS/build/
 
 # Local generated cache
 Scrabbler.ConsoleApp/Cache/
@@ -27,3 +28,5 @@ Scrabbler.ConsoleApp/Data/dictionary-pl.txt
 .DS_Store
 .idea/
 *.DotSettings.user
+*.xcuserstate
+xcuserdata/

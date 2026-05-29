@@ -3,26 +3,54 @@ set -euo pipefail
 
 CONFIGURATION="Release"
 DEVICE_ID=""
-TEAM_ID=""
+TEAM_ID="${SCRABBLER_DEVELOPMENT_TEAM:-}"
+USE_CACHED_PROVISIONING=false
+BUNDLE_ID="com.andromedon.scrabbler"
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./ScrabblerInstall.sh [--debug|--release] [--device DEVICE_ID] [--team TEAM_ID]
+  ./ScrabblerInstall.sh [--debug|--release] [--device DEVICE_ID] [--team TEAM_ID] [--use-cached-provisioning]
 
 Examples:
   ./ScrabblerInstall.sh
   ./ScrabblerInstall.sh --release --device 5B23B55F-73D0-5289-A601-BD2CF9A19377
   ./ScrabblerInstall.sh --debug --team ABCDE12345
+  ./ScrabblerInstall.sh --use-cached-provisioning
 
 If --device is omitted, the script uses the first connected iPhone from:
   xcrun devicectl list devices
 
-If --team is omitted, Xcode uses the DEVELOPMENT_TEAM configured in:
+If --team is omitted, the script uses SCRABBLER_DEVELOPMENT_TEAM when set.
+Otherwise Xcode uses the DEVELOPMENT_TEAM configured in:
   Scrabbler.iOS/Scrabbler.xcodeproj
 
 Default configuration: Release.
+Default provisioning behavior: renew local provisioning profile before build.
 EOF
+}
+
+renew_local_provisioning_profiles() {
+  local bundle_id="$1"
+  local profiles_dir="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+
+  if [[ ! -d "$profiles_dir" ]]; then
+    echo "Provisioning profile cache directory not found: $profiles_dir"
+    return
+  fi
+
+  local removed=0
+  while IFS= read -r -d '' profile; do
+    if /usr/bin/grep -a -q "$bundle_id" "$profile"; then
+      echo "Removing cached provisioning profile for ${bundle_id}: ${profile}"
+      rm -f "$profile"
+      removed=$((removed + 1))
+    fi
+  done < <(find "$profiles_dir" -maxdepth 1 -name '*.mobileprovision' -print0)
+
+  if [[ "$removed" -eq 0 ]]; then
+    echo "No cached provisioning profiles found for ${bundle_id}."
+  fi
 }
 
 while [[ $# -gt 0 ]]; do
@@ -53,6 +81,10 @@ while [[ $# -gt 0 ]]; do
       TEAM_ID="$2"
       shift 2
       ;;
+    --use-cached-provisioning)
+      USE_CACHED_PROVISIONING=true
+      shift
+      ;;
     --help|-h)
       usage
       exit 0
@@ -79,6 +111,12 @@ SCHEME="Scrabbler"
 DERIVED_DATA_PATH="$(pwd)/Scrabbler.iOS/build/DerivedData"
 APP_PATH="${DERIVED_DATA_PATH}/Build/Products/${CONFIGURATION}-iphoneos/Scrabbler.app"
 
+if [[ "$USE_CACHED_PROVISIONING" != true ]]; then
+  renew_local_provisioning_profiles "$BUNDLE_ID"
+else
+  echo "Using cached provisioning profile for ${BUNDLE_ID}."
+fi
+
 BUILD_ARGS=(
   -project "$PROJECT"
   -scheme "$SCHEME"
@@ -86,6 +124,7 @@ BUILD_ARGS=(
   -destination "generic/platform=iOS"
   -derivedDataPath "$DERIVED_DATA_PATH"
   -allowProvisioningUpdates
+  -allowProvisioningDeviceRegistration
   CODE_SIGN_STYLE=Automatic
   build
 )

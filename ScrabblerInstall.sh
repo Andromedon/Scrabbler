@@ -6,6 +6,8 @@ DEVICE_ID=""
 TEAM_ID="${SCRABBLER_DEVELOPMENT_TEAM:-}"
 USE_CACHED_PROVISIONING=false
 BUNDLE_ID="com.andromedon.scrabbler"
+CONSOLE_DICTIONARY="Scrabbler.ConsoleApp/Data/dictionary-pl.txt"
+IOS_DICTIONARY="Scrabbler.iOS/ScrabblerKit/Sources/ScrabblerKit/Resources/Data/dictionary-pl.txt"
 
 usage() {
   cat <<'EOF'
@@ -50,6 +52,18 @@ renew_local_provisioning_profiles() {
 
   if [[ "$removed" -eq 0 ]]; then
     echo "No cached provisioning profiles found for ${bundle_id}."
+  fi
+}
+
+prepare_local_dictionary() {
+  if [[ ! -f "$CONSOLE_DICTIONARY" ]]; then
+    echo "Full dictionary not found at ${CONSOLE_DICTIONARY}; native app will use bundled sample dictionary."
+    return
+  fi
+
+  if [[ ! -f "$IOS_DICTIONARY" || "$CONSOLE_DICTIONARY" -nt "$IOS_DICTIONARY" ]]; then
+    echo "Copying full dictionary into native app resources..."
+    cp "$CONSOLE_DICTIONARY" "$IOS_DICTIONARY"
   fi
 }
 
@@ -116,6 +130,8 @@ if [[ "$USE_CACHED_PROVISIONING" != true ]]; then
 else
   echo "Using cached provisioning profile for ${BUNDLE_ID}."
 fi
+
+prepare_local_dictionary
 
 BUILD_ARGS=(
   -project "$PROJECT"

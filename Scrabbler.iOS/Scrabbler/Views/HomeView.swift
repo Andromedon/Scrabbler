@@ -25,6 +25,10 @@ struct HomeView: View {
                 ProgressView(state.status)
             }
 
+            Text(state.dictionaryStatus)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
             Spacer()
         }
         .navigationTitle("Home")

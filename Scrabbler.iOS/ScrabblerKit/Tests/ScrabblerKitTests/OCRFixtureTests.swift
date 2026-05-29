@@ -31,4 +31,25 @@ struct OCRFixtureTests {
             }
         }
     }
+
+    @Test func nativeVisionReaderReadsBoardLettersFromFixture() async throws {
+        let url = try fixtureURL("board-real-7367.jpg")
+        let bonuses = try BundledDataLoader.loadBonusLayout()
+        let result = try await NativeBoardImageReader().readBoard(from: url, bonuses: bonuses)
+        let occupied = result.board.allCells.filter { !$0.isEmpty }
+
+        #expect(occupied.count >= 20)
+        #expect(BoardWordExtractor.extractWords(from: result.board).isEmpty == false)
+    }
+
+    private func fixtureURL(_ fileName: String) throws -> URL {
+        let name = (fileName as NSString).deletingPathExtension
+        let ext = (fileName as NSString).pathExtension
+        if let url = Bundle.module.url(forResource: name, withExtension: ext, subdirectory: "Fixtures") ??
+            Bundle.module.url(forResource: name, withExtension: ext) {
+            return url
+        }
+
+        throw ScrabblerError.dictionaryNotFound(fileName)
+    }
 }

@@ -20,6 +20,7 @@ final class AppState: ObservableObject {
     @Published var selectedMove: Move?
     @Published var isBusy = false
     @Published var status = ""
+    @Published var dictionaryStatus = ""
     @Published var errorMessage: String?
 
     private let bonuses: [[BonusType]]
@@ -30,7 +31,8 @@ final class AppState: ObservableObject {
     init() {
         let loadedBonuses = (try? BundledDataLoader.loadBonusLayout()) ??
             Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size)
-        let loadedDictionary = (try? BundledDataLoader.loadSampleDictionary()) ??
+        let hasFullDictionary = BundledDataLoader.hasFullDictionary()
+        let loadedDictionary = (try? BundledDataLoader.loadDictionary()) ??
             PolishWordDictionary.fromWords(["ALA", "KOT", "DOM"])
         let loadedValues = (try? BundledDataLoader.loadLetterValues()) ?? [:]
 
@@ -39,6 +41,7 @@ final class AppState: ObservableObject {
         self.reader = NativeBoardImageReader()
         self.dictionary = loadedDictionary
         self.solver = MoveSolver(dictionary: loadedDictionary, letterValues: loadedValues)
+        self.dictionaryStatus = hasFullDictionary ? "Full dictionary loaded" : "Sample dictionary loaded"
     }
 
     func loadPhoto(_ item: PhotosPickerItem?) async {

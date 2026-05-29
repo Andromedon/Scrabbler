@@ -100,16 +100,29 @@ public enum BundledDataLoader {
         return try PolishWordDictionary.load(from: url)
     }
 
+    public static func loadDictionary(bundle: Bundle? = nil) throws -> PolishWordDictionary {
+        let resolvedBundle = bundle ?? .module
+        if let fullDictionary = optionalResourceURL("dictionary-pl", extension: "txt", bundle: resolvedBundle) {
+            return try PolishWordDictionary.load(from: fullDictionary)
+        }
+
+        return try loadSampleDictionary(bundle: resolvedBundle)
+    }
+
+    public static func hasFullDictionary(bundle: Bundle? = nil) -> Bool {
+        optionalResourceURL("dictionary-pl", extension: "txt", bundle: bundle ?? .module) != nil
+    }
+
     private static func resourceURL(_ name: String, extension ext: String, bundle: Bundle) throws -> URL {
-        if let url = bundle.url(forResource: name, withExtension: ext, subdirectory: "Resources/Data") {
-            return url
-        }
-        if let url = bundle.url(forResource: name, withExtension: ext, subdirectory: "Data") {
-            return url
-        }
-        if let url = bundle.url(forResource: name, withExtension: ext) {
+        if let url = optionalResourceURL(name, extension: ext, bundle: bundle) {
             return url
         }
         throw ScrabblerError.dictionaryNotFound("\(name).\(ext)")
+    }
+
+    private static func optionalResourceURL(_ name: String, extension ext: String, bundle: Bundle) -> URL? {
+        bundle.url(forResource: name, withExtension: ext, subdirectory: "Resources/Data") ??
+            bundle.url(forResource: name, withExtension: ext, subdirectory: "Data") ??
+            bundle.url(forResource: name, withExtension: ext)
     }
 }

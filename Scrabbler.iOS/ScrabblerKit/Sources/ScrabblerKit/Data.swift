@@ -81,6 +81,12 @@ public final class PolishWordDictionary: WordDictionary, @unchecked Sendable {
         )
     }
 
+    public static func hasCache(from url: URL, cacheDirectory: URL) throws -> Bool {
+        let source = try DictionarySourceMetadata(url: url)
+        let cacheURL = try DictionaryCache.cacheURL(for: source, cacheDirectory: cacheDirectory)
+        return FileManager.default.fileExists(atPath: cacheURL.path)
+    }
+
     static func fromWordsByLength(_ wordsByLength: [Int: [String]]) -> PolishWordDictionary {
         var normalized = Set<String>()
         var grouped: [Int: [String]] = [:]
@@ -253,6 +259,15 @@ public enum BundledDataLoader {
             from: fullDictionary,
             cacheDirectory: cacheDirectory
         )
+    }
+
+    public static func hasDictionaryCache(cacheDirectory: URL, bundle: Bundle? = nil) throws -> Bool {
+        let resolvedBundle = bundle ?? .module
+        guard let fullDictionary = optionalResourceURL("dictionary-pl", extension: "txt", bundle: resolvedBundle) else {
+            return false
+        }
+
+        return try PolishWordDictionary.hasCache(from: fullDictionary, cacheDirectory: cacheDirectory)
     }
 
     public static func hasFullDictionary(bundle: Bundle? = nil) -> Bool {

@@ -29,14 +29,14 @@ struct HomeView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 18)
                 } else {
-                    Text(state.isDictionaryReady ? "Dictionary Loaded" : "Load Dictionary")
+                    Text(dictionaryButtonTitle)
                         .font(.title3.bold())
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 18)
                 }
             }
             .buttonStyle(.bordered)
-            .disabled(state.isDictionaryReady || state.isDictionaryLoading)
+            .disabled(state.isDictionaryReady || state.isDictionaryCacheAvailable || state.isDictionaryLoading)
             .padding(.horizontal)
 
             if state.isBusy {
@@ -57,6 +57,16 @@ struct HomeView: View {
         .navigationTitle("Home")
         .onChange(of: selectedPhoto) { newValue in
             Task { await state.loadPhoto(newValue) }
+        }
+    }
+
+    private var dictionaryButtonTitle: String {
+        if state.isDictionaryReady {
+            "Dictionary Loaded"
+        } else if state.isDictionaryCacheAvailable {
+            "Dictionary Cached"
+        } else {
+            "Load Dictionary"
         }
     }
 }

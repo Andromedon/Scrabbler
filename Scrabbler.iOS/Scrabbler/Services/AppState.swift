@@ -26,6 +26,7 @@ final class AppState: ObservableObject {
     @Published var status = ""
     @Published var dictionaryStatus = ""
     @Published var isDictionaryReady = false
+    @Published var isDictionaryCacheAvailable = false
     @Published var isDictionaryLoading = false
     @Published var errorMessage: String?
 
@@ -47,7 +48,7 @@ final class AppState: ObservableObject {
         self.reader = NativeBoardImageReader()
         self.letterValues = loadedValues
         self.dictionaryStatus = "Dictionary not loaded"
-        restoreCachedDictionaryIfAvailable()
+        refreshDictionaryCacheAvailability()
     }
 
     func loadDictionary() {
@@ -185,62 +186,77 @@ final class AppState: ObservableObject {
                 dictionary = loaded.dictionary
                 solver = loaded.solver
                 isDictionaryReady = true
+                isDictionaryCacheAvailable = loaded.sourceKind == .full
                 isDictionaryLoading = false
                 dictionaryStatus = loaded.statusText
                 applyDictionaryRepairsIfPossible()
                 refreshBoardValidation()
+                solverLoadTask = nil
             } catch {
                 let fallback = PolishWordDictionary.fromWords(["ALA", "KOT", "DOM"])
                 dictionary = fallback
                 solver = MoveSolver(dictionary: fallback, letterValues: values)
                 isDictionaryReady = true
+                isDictionaryCacheAvailable = false
                 isDictionaryLoading = false
                 dictionaryStatus = "Fallback dictionary loaded"
                 errorMessage = error.localizedDescription
+                solverLoadTask = nil
             }
         }
     }
 
-    private func restoreCachedDictionaryIfAvailable() {
-        guard solver == nil, !isDictionaryLoading else { return }
-        dictionaryStatus = "Checking dictionary cache..."
-        isDictionaryLoading = true
-
-        let values = letterValues
+    private func refreshDictionaryCacheAvailability() {
         Task {
             do {
-                let loaded = try await Task.detached {
+                let hasCache = try await Task.detached {
                     let cacheDirectory = try dictionaryCacheDirectory()
-                    guard let cached = try BundledDataLoader.loadDictionaryFromCacheIfAvailable(
-                        cacheDirectory: cacheDirectory
-                    ) else {
-                        return nil as SolverLoadResult?
-                    }
-
-                    return SolverLoadResult(
-                        dictionary: cached.dictionary,
-                        solver: MoveSolver(dictionary: cached.dictionary, letterValues: values),
-                        sourceKind: cached.sourceKind,
-                        usedCache: cached.usedCache
-                    )
+                    return try BundledDataLoader.hasDictionaryCache(cacheDirectory: cacheDirectory)
                 }.value
 
-                if let loaded {
-                    dictionary = loaded.dictionary
-                    solver = loaded.solver
-                    isDictionaryReady = true
-                    dictionaryStatus = loaded.statusText
-                    applyDictionaryRepairsIfPossible()
-                    refreshBoardValidation()
-                } else {
-                    dictionaryStatus = "Dictionary not loaded"
+                isDictionaryCacheAvailable = hasCache
+                if hasCache, solver == nil {
+                    dictionaryStatus = "Dictionary cache available"
                 }
-                isDictionaryLoading = false
             } catch {
-                dictionaryStatus = "Dictionary not loaded"
-                isDictionaryLoading = false
+                isDictionaryCacheAvailable = false
             }
         }
+    }
+
+    private func loadCachedSolverForUse() async throws -> MoveSolver {
+        if let solver {
+            return solver
+        }
+
+        guard isDictionaryCacheAvailable else {
+            throw ScrabblerError.dictionaryNotLoaded
+        }
+
+        let values = letterValues
+        let loaded = try await Task.detached {
+            let cacheDirectory = try dictionaryCacheDirectory()
+            guard let cached = try BundledDataLoader.loadDictionaryFromCacheIfAvailable(
+                cacheDirectory: cacheDirectory
+            ) else {
+                throw ScrabblerError.dictionaryNotLoaded
+            }
+
+            return SolverLoadResult(
+                dictionary: cached.dictionary,
+                solver: MoveSolver(dictionary: cached.dictionary, letterValues: values),
+                sourceKind: cached.sourceKind,
+                usedCache: cached.usedCache
+            )
+        }.value
+
+        dictionary = loaded.dictionary
+        solver = loaded.solver
+        isDictionaryReady = true
+        dictionaryStatus = loaded.statusText
+        applyDictionaryRepairsIfPossible()
+        refreshBoardValidation()
+        return loaded.solver
     }
 
     private func solverForUse() async throws -> MoveSolver {
@@ -248,7 +264,7 @@ final class AppState: ObservableObject {
             return solver
         }
 
-        throw ScrabblerError.dictionaryNotLoaded
+        return try await loadCachedSolverForUse()
     }
 
     private func applyDictionaryRepairsIfPossible() {

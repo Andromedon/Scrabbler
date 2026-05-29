@@ -73,6 +73,61 @@ struct DictionaryBoardRepairerTests {
         #expect(repaired.appliedRepairs.isEmpty)
     }
 
+    @Test func repairsDiacriticVariantWhenDictionaryRequiresIt() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 7, letter: "S")
+            .setCell(row: 7, column: 8, letter: "R")
+            .setCell(row: 7, column: 9, letter: "O")
+            .setCell(row: 7, column: 10, letter: "D")
+            .setCell(row: 7, column: 11, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            cell(row: 7, column: 7, letter: "S", confidence: 0.96, candidates: [
+                LetterCandidate(letter: "S", distance: 0.04)
+            ])
+        ])
+
+        let repaired = repairer(words: "ŚRODY").repair(result)
+
+        #expect(repaired.board[7, 7].letter == "Ś")
+        #expect(repaired.appliedRepairs.contains { $0.row == 7 && $0.column == 7 && $0.repairedLetter == "Ś" })
+    }
+
+    @Test func repairsDiacriticVariantWhenCrossWordAlsoMatches() {
+        let board = emptyBoard()
+            .setCell(row: 6, column: 7, letter: "O")
+            .setCell(row: 7, column: 7, letter: "S")
+            .setCell(row: 7, column: 8, letter: "R")
+            .setCell(row: 7, column: 9, letter: "O")
+            .setCell(row: 7, column: 10, letter: "D")
+            .setCell(row: 7, column: 11, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            cell(row: 7, column: 7, letter: "S", confidence: 0.50, candidates: [
+                LetterCandidate(letter: "S", distance: 0.50)
+            ])
+        ])
+
+        let repaired = repairer(words: "ŚRODY", "OŚ").repair(result)
+
+        #expect(repaired.board[7, 7].letter == "Ś")
+    }
+
+
+    @Test func fillsSingleMissedTileGapFromDictionaryPattern() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 7, letter: "Ś")
+            .setCell(row: 7, column: 9, letter: "O")
+            .setCell(row: 7, column: 10, letter: "D")
+            .setCell(row: 7, column: 11, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0)
+        ])
+
+        let repaired = repairer(words: "ŚRODY").repair(result)
+
+        #expect(repaired.board[7, 8].letter == "R")
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("ŚRODY"))
+    }
+
     private func emptyBoard() -> Board {
         Board(bonuses: Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size))
     }

@@ -132,6 +132,23 @@ public struct NativeBoardImageReader: BoardImageReading {
             }
         }
 
+        for row in 0..<Board.size {
+            for column in 0..<Board.size {
+                let key = "\(row):\(column)"
+                guard readsByCell[key] == nil,
+                      sampler.cellLooksOccupied(row: row, column: column) else {
+                    continue
+                }
+
+                readsByCell[key] = CellRead(
+                    row: row,
+                    column: column,
+                    letter: nil,
+                    confidence: 0
+                )
+            }
+        }
+
         var board = Board(bonuses: bonuses)
         let cells = readsByCell.values.sorted {
             if $0.row != $1.row { return $0.row < $1.row }
@@ -196,7 +213,7 @@ public struct DictionaryBoardRepairer: Sendable {
         var repairs: [BoardRepair] = []
         let cellsByKey = Dictionary(uniqueKeysWithValues: result.cells.map { (Self.key(row: $0.row, column: $0.column), $0) })
 
-        for _ in 0..<8 {
+        for _ in 0..<32 {
             let invalidWords = invalidWords(on: board)
             guard let repair = bestRepair(on: board, invalidWords: invalidWords, cellsByKey: cellsByKey) else {
                 break
@@ -229,12 +246,28 @@ public struct DictionaryBoardRepairer: Sendable {
     }
 
     private func bestRepair(on board: Board, invalidWords: [BoardWord], cellsByKey: [String: CellRead]) -> BoardRepair? {
-        let candidates = invalidWords
+        let rawCandidates = (invalidWords
             .flatMap { repairCandidates(for: $0, on: board, cellsByKey: cellsByKey) }
+            + gapRepairCandidates(on: board, cellsByKey: cellsByKey))
             .filter { candidate in
                 affectedWords(on: candidate.board, row: candidate.repair.row, column: candidate.repair.column)
                     .allSatisfy { dictionary.contains($0.text) }
             }
+
+        var deduplicated: [String: RepairCandidate] = [:]
+        for candidate in rawCandidates {
+            let key = "\(candidate.repair.row):\(candidate.repair.column):\(candidate.repair.originalLetter.map(String.init) ?? "."):\(candidate.repair.repairedLetter)"
+            if let existing = deduplicated[key] {
+                if candidate.invalidWordReduction > existing.invalidWordReduction ||
+                    candidate.invalidWordReduction == existing.invalidWordReduction && candidate.score > existing.score {
+                    deduplicated[key] = candidate
+                }
+            } else {
+                deduplicated[key] = candidate
+            }
+        }
+
+        let candidates = Array(deduplicated.values)
             .sorted { lhs, rhs in
                 if lhs.invalidWordReduction != rhs.invalidWordReduction {
                     return lhs.invalidWordReduction > rhs.invalidWordReduction
@@ -252,6 +285,205 @@ public struct DictionaryBoardRepairer: Sendable {
         return best.repair
     }
 
+    private func gapRepairCandidates(on board: Board, cellsByKey: [String: CellRead]) -> [RepairCandidate] {
+        var candidates: [RepairCandidate] = []
+        for row in 0..<Board.size {
+            for column in 0..<Board.size {
+                guard board[row, column].letter == nil,
+                      let cell = cellsByKey[Self.key(row: row, column: column)],
+                      cell.letter == nil else {
+                    continue
+                }
+
+                if let horizontal = gapRepairCandidate(
+                    on: board,
+                    row: row,
+                    column: column,
+                    direction: .horizontal,
+                    cellsByKey: cellsByKey
+                ) {
+                    candidates.append(horizontal)
+                }
+
+                if let vertical = gapRepairCandidate(
+                    on: board,
+                    row: row,
+                    column: column,
+                    direction: .vertical,
+                    cellsByKey: cellsByKey
+                ) {
+                    candidates.append(vertical)
+                }
+            }
+        }
+        return candidates
+    }
+
+    private func gapRepairCandidate(
+        on board: Board,
+        row: Int,
+        column: Int,
+        direction: Direction,
+        cellsByKey: [String: CellRead]
+    ) -> RepairCandidate? {
+        let before = direction == .horizontal ? (row, column - 1) : (row - 1, column)
+        let after = direction == .horizontal ? (row, column + 1) : (row + 1, column)
+        guard isOccupied(board, row: before.0, column: before.1),
+              isOccupied(board, row: after.0, column: after.1) else {
+            return nil
+        }
+
+        var startRow = row
+        var startColumn = column
+        while true {
+            let previous = direction == .horizontal ? (startRow, startColumn - 1) : (startRow - 1, startColumn)
+            guard isOccupied(board, row: previous.0, column: previous.1) else { break }
+            startRow = previous.0
+            startColumn = previous.1
+        }
+
+        var cells: [(row: Int, column: Int, letter: Character?)] = []
+        var currentRow = startRow
+        var currentColumn = startColumn
+        var emptyCount = 0
+        while Board.isInside(row: currentRow, column: currentColumn) {
+            let letter = currentRow == row && currentColumn == column
+                ? nil
+                : board[currentRow, currentColumn].letter
+            if letter == nil && (currentRow != row || currentColumn != column) {
+                break
+            }
+            if letter == nil {
+                emptyCount += 1
+            }
+            cells.append((currentRow, currentColumn, letter))
+
+            if direction == .horizontal {
+                currentColumn += 1
+            } else {
+                currentRow += 1
+            }
+            if emptyCount > 1 {
+                break
+            }
+        }
+
+        guard emptyCount == 1,
+              cells.count > 2,
+              let words = dictionary.wordsByLength[cells.count] else {
+            return nil
+        }
+
+        let beforeInvalid = invalidWords(on: board).count
+        let matches = words
+            .compactMap { word in
+                buildGapCandidate(
+                    on: board,
+                    cells: cells,
+                    word: word,
+                    gapRow: row,
+                    gapColumn: column,
+                    cellsByKey: cellsByKey,
+                    beforeInvalid: beforeInvalid
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.invalidWordReduction != rhs.invalidWordReduction {
+                    return lhs.invalidWordReduction > rhs.invalidWordReduction
+                }
+                return lhs.score > rhs.score
+            }
+
+        guard matches.count == 1 else { return nil }
+        return matches[0]
+    }
+
+    private func buildGapCandidate(
+        on board: Board,
+        cells: [(row: Int, column: Int, letter: Character?)],
+        word: String,
+        gapRow: Int,
+        gapColumn: Int,
+        cellsByKey: [String: CellRead],
+        beforeInvalid: Int
+    ) -> RepairCandidate? {
+        let expectedLetters = Array(word)
+        guard expectedLetters.count == cells.count else { return nil }
+
+        var repairedBoard = board
+        var repairs: [BoardRepair] = []
+        var score = Double(word.count)
+
+        for index in expectedLetters.indices {
+            let cell = cells[index]
+            let expected = expectedLetters[index]
+            if cell.row == gapRow && cell.column == gapColumn {
+                repairedBoard = repairedBoard.setCell(row: cell.row, column: cell.column, letter: expected)
+                repairs.append(BoardRepair(
+                    row: cell.row,
+                    column: cell.column,
+                    originalLetter: nil,
+                    repairedLetter: expected,
+                    reason: "dictionary: \(word)"
+                ))
+                score += 0.75
+                continue
+            }
+
+            if cell.letter == expected {
+                continue
+            }
+
+            guard let current = cell.letter,
+                  let read = cellsByKey[Self.key(row: cell.row, column: cell.column)],
+                  canSubstituteGapNeighbor(read, current: current, expected: expected, score: &score) else {
+                return nil
+            }
+
+            repairedBoard = repairedBoard.setCell(row: cell.row, column: cell.column, letter: expected)
+            repairs.append(BoardRepair(
+                row: cell.row,
+                column: cell.column,
+                originalLetter: current,
+                repairedLetter: expected,
+                reason: "dictionary: \(word)"
+            ))
+        }
+
+        guard !repairs.isEmpty,
+              repairs.filter({ $0.originalLetter != nil }).count <= 1 else {
+            return nil
+        }
+
+        let affected = repairs.flatMap { affectedWords(on: repairedBoard, row: $0.row, column: $0.column) }
+        guard !affected.isEmpty, affected.allSatisfy({ dictionary.contains($0.text) }) else {
+            return nil
+        }
+
+        let afterInvalid = invalidWords(on: repairedBoard).count
+        return RepairCandidate(
+            board: repairedBoard,
+            repair: repairs[0],
+            invalidWordReduction: max(1, beforeInvalid - afterInvalid),
+            score: score
+        )
+    }
+
+    private func canSubstituteGapNeighbor(
+        _ cell: CellRead,
+        current: Character,
+        expected: Character,
+        score: inout Double
+    ) -> Bool {
+        guard cell.confidence < 0.82,
+              replacementLetters(for: cell, current: current).contains(expected) else {
+            return false
+        }
+
+        score += scoreReplacement(cell: cell, replacement: expected)
+        return true
+    }
+
     private func repairCandidates(for word: BoardWord, on board: Board, cellsByKey: [String: CellRead]) -> [RepairCandidate] {
         guard !dictionary.contains(word.text) else { return [] }
 
@@ -262,7 +494,10 @@ public struct DictionaryBoardRepairer: Sendable {
             guard let cell = cellsByKey[Self.key(row: coordinate.row, column: coordinate.column)] else {
                 continue
             }
-            if cell.confidence >= 0.90 {
+            let currentLetter = letters[index]
+            let allowsHighConfidenceDiacriticRepair = likelyConfusions(for: currentLetter)
+                .contains { isDiacriticVariant(currentLetter, $0) }
+            if cell.confidence >= 0.90 && !allowsHighConfidenceDiacriticRepair {
                 continue
             }
 
@@ -312,13 +547,38 @@ public struct DictionaryBoardRepairer: Sendable {
 
     private func likelyConfusions(for letter: Character) -> [Character] {
         switch letter {
-        case "N": ["H"]
+        case "N": ["H", "Ń"]
         case "H": ["N"]
         case "D": ["O", "B"]
-        case "O": ["D"]
+        case "O": ["D", "C", "Ó"]
+        case "C": ["O", "Ć"]
         case "B": ["D"]
+        case "A": ["Ą"]
+        case "Ą": ["A"]
+        case "Ć": ["C"]
+        case "E": ["Ę"]
+        case "Ę": ["E"]
+        case "L": ["Ł"]
+        case "Ł": ["L"]
+        case "Ń": ["N"]
+        case "Ó": ["O"]
+        case "S": ["Ś"]
+        case "Ś": ["S"]
+        case "Z": ["Ź", "Ż"]
+        case "Ź": ["Z", "Ż"]
+        case "Ż": ["Z", "Ź"]
         default: []
         }
+    }
+
+    private func isDiacriticVariant(_ lhs: Character, _ rhs: Character) -> Bool {
+        func folded(_ letter: Character) -> String {
+            String(letter)
+                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "pl_PL"))
+                .uppercased()
+        }
+
+        return lhs != rhs && folded(lhs) == folded(rhs)
     }
 
     private func scoreReplacement(cell: CellRead, replacement: Character) -> Double {
@@ -336,6 +596,10 @@ public struct DictionaryBoardRepairer: Sendable {
         BoardWordExtractor.extractWords(from: board).filter { word in
             word.coordinates.contains { $0.row == row && $0.column == column }
         }
+    }
+
+    private func isOccupied(_ board: Board, row: Int, column: Int) -> Bool {
+        Board.isInside(row: row, column: column) && board[row, column].letter != nil
     }
 
     private static func key(row: Int, column: Int) -> String {

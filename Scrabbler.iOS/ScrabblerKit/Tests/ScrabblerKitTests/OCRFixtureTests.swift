@@ -42,6 +42,55 @@ struct OCRFixtureTests {
         #expect(BoardWordExtractor.extractWords(from: result.board).isEmpty == false)
     }
 
+    @Test func repairsSingleMissedTileGapInRealBoard7367() async throws {
+        let result = try await readFixture("board-real-7367.jpg")
+
+        let repaired = DictionaryBoardRepairer(
+            dictionary: PolishWordDictionary.fromWords(["ŚRODY", "OŚ"]),
+            letterValues: try BundledDataLoader.loadLetterValues()
+        ).repair(result)
+
+        #expect(boardLines(repaired.board).contains("ŚRODY"))
+    }
+
+    @Test func doesNotRepairEmptyBonusSquareGapInRealBoard7392() async throws {
+        let result = try await readFixture("board-real-7392.jpg")
+
+        let repaired = DictionaryBoardRepairer(
+            dictionary: PolishWordDictionary.fromWords(["STANOWIŁAŚ", "BAKIEM", "SEZON"]),
+            letterValues: try BundledDataLoader.loadLetterValues()
+        ).repair(result)
+
+        #expect(repaired.board[6, 8].letter == nil)
+        #expect(!repaired.appliedRepairs.contains { repair in
+            repair.row == 6 && repair.column == 8
+        })
+    }
+
+    @Test(.disabled("Native Vision currently maps MĄCIE with an extra leading W; needs edge false-positive removal."))
+    func repairsMissedTileAndNeighborSubstitutionInRealBoard7403() async throws {
+        let result = try await readFixture("board-real-7403.jpg")
+
+        let repaired = DictionaryBoardRepairer(
+            dictionary: PolishWordDictionary.fromWords(["MĄCIE"]),
+            letterValues: try BundledDataLoader.loadLetterValues()
+        ).repair(result)
+
+        #expect(repaired.board[1, 8].letter == "C")
+        #expect(repaired.board[1, 9].letter == "I")
+        #expect(boardLines(repaired.board).contains("MĄCIE"))
+    }
+
+    private func readFixture(_ fileName: String) async throws -> BoardReadResult {
+        let url = try fixtureURL(fileName)
+        let bonuses = try BundledDataLoader.loadBonusLayout()
+        return try await NativeBoardImageReader().readBoard(from: url, bonuses: bonuses)
+    }
+
+    private func boardLines(_ board: Board) -> [String] {
+        BoardWordExtractor.extractWords(from: board).map(\.text)
+    }
+
     private func fixtureURL(_ fileName: String) throws -> URL {
         let name = (fileName as NSString).deletingPathExtension
         let ext = (fileName as NSString).pathExtension

@@ -47,6 +47,7 @@ final class AppState: ObservableObject {
         self.reader = NativeBoardImageReader()
         self.letterValues = loadedValues
         self.dictionaryStatus = "Dictionary not loaded"
+        restoreCachedDictionaryIfAvailable()
     }
 
     func loadDictionary() {
@@ -161,7 +162,7 @@ final class AppState: ObservableObject {
     }
 
     private func startDictionaryLoad() {
-        guard solver == nil, solverLoadTask == nil else { return }
+        guard solver == nil, solverLoadTask == nil, !isDictionaryLoading else { return }
         dictionaryStatus = "Loading dictionary..."
         isDictionaryLoading = true
 
@@ -196,6 +197,48 @@ final class AppState: ObservableObject {
                 isDictionaryLoading = false
                 dictionaryStatus = "Fallback dictionary loaded"
                 errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func restoreCachedDictionaryIfAvailable() {
+        guard solver == nil, !isDictionaryLoading else { return }
+        dictionaryStatus = "Checking dictionary cache..."
+        isDictionaryLoading = true
+
+        let values = letterValues
+        Task {
+            do {
+                let loaded = try await Task.detached {
+                    let cacheDirectory = try dictionaryCacheDirectory()
+                    guard let cached = try BundledDataLoader.loadDictionaryFromCacheIfAvailable(
+                        cacheDirectory: cacheDirectory
+                    ) else {
+                        return nil as SolverLoadResult?
+                    }
+
+                    return SolverLoadResult(
+                        dictionary: cached.dictionary,
+                        solver: MoveSolver(dictionary: cached.dictionary, letterValues: values),
+                        sourceKind: cached.sourceKind,
+                        usedCache: cached.usedCache
+                    )
+                }.value
+
+                if let loaded {
+                    dictionary = loaded.dictionary
+                    solver = loaded.solver
+                    isDictionaryReady = true
+                    dictionaryStatus = loaded.statusText
+                    applyDictionaryRepairsIfPossible()
+                    refreshBoardValidation()
+                } else {
+                    dictionaryStatus = "Dictionary not loaded"
+                }
+                isDictionaryLoading = false
+            } catch {
+                dictionaryStatus = "Dictionary not loaded"
+                isDictionaryLoading = false
             }
         }
     }

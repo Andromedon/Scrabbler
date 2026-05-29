@@ -22,6 +22,21 @@ struct DictionaryCacheTests {
         #expect(second.dictionary.contains("DOM"))
     }
 
+    @Test func cacheOnlyLoadDoesNotBuildMissingCache() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let dictionary = root.appendingPathComponent("dictionary.txt")
+        let cache = root.appendingPathComponent("cache", isDirectory: true)
+        try "ALA\nKOT\nDOM\n".write(to: dictionary, atomically: true, encoding: .utf8)
+
+        let missing = try PolishWordDictionary.loadFromCacheIfAvailable(from: dictionary, cacheDirectory: cache)
+        #expect(missing == nil)
+        #expect(FileManager.default.fileExists(atPath: cache.path) == true)
+        #expect((try FileManager.default.contentsOfDirectory(atPath: cache.path)).isEmpty)
+    }
+
     @Test func invalidatesCacheWhenSourceChanges() throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

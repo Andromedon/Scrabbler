@@ -66,6 +66,21 @@ public final class PolishWordDictionary: WordDictionary, @unchecked Sendable {
         return DictionaryLoadResult(dictionary: dictionary, sourceKind: .full, usedCache: false)
     }
 
+    public static func loadFromCacheIfAvailable(from url: URL, cacheDirectory: URL) throws -> DictionaryLoadResult? {
+        let source = try DictionarySourceMetadata(url: url)
+        let cacheURL = try DictionaryCache.cacheURL(for: source, cacheDirectory: cacheDirectory)
+
+        guard let cached = try DictionaryCache.read(from: cacheURL, matching: source) else {
+            return nil
+        }
+
+        return DictionaryLoadResult(
+            dictionary: PolishWordDictionary.fromWordsByLength(cached.wordsByLength),
+            sourceKind: .full,
+            usedCache: true
+        )
+    }
+
     static func fromWordsByLength(_ wordsByLength: [Int: [String]]) -> PolishWordDictionary {
         var normalized = Set<String>()
         var grouped: [Int: [String]] = [:]
@@ -222,6 +237,21 @@ public enum BundledDataLoader {
             dictionary: try loadSampleDictionary(bundle: resolvedBundle),
             sourceKind: .sample,
             usedCache: false
+        )
+    }
+
+    public static func loadDictionaryFromCacheIfAvailable(
+        cacheDirectory: URL,
+        bundle: Bundle? = nil
+    ) throws -> DictionaryLoadResult? {
+        let resolvedBundle = bundle ?? .module
+        guard let fullDictionary = optionalResourceURL("dictionary-pl", extension: "txt", bundle: resolvedBundle) else {
+            return nil
+        }
+
+        return try PolishWordDictionary.loadFromCacheIfAvailable(
+            from: fullDictionary,
+            cacheDirectory: cacheDirectory
         )
     }
 

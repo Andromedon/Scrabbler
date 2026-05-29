@@ -10,6 +10,7 @@ public sealed class ScrabblerWorkflowService
 {
     private readonly MauiAssetService _assets;
     private readonly ScrabblerSession _session;
+    private readonly IBackgroundTaskService _backgroundTasks;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly object _backgroundWarmupLock = new();
     private IBoardImageReader? _reader;
@@ -18,13 +19,25 @@ public sealed class ScrabblerWorkflowService
     private IMoveSolver? _solver;
     private Task? _backgroundWarmupTask;
 
-    public ScrabblerWorkflowService(MauiAssetService assets, ScrabblerSession session)
+    public ScrabblerWorkflowService(
+        MauiAssetService assets,
+        ScrabblerSession session,
+        IBackgroundTaskService backgroundTasks)
     {
         _assets = assets;
         _session = session;
+        _backgroundTasks = backgroundTasks;
     }
 
     public async Task ReadBoardAsync(string imagePath, Action<string>? reportStatus = null, CancellationToken cancellationToken = default)
+    {
+        await _backgroundTasks.RunAsync(
+            "Read Scrabbler board",
+            async token => await ReadBoardCoreAsync(imagePath, reportStatus, token),
+            cancellationToken);
+    }
+
+    private async Task ReadBoardCoreAsync(string imagePath, Action<string>? reportStatus, CancellationToken cancellationToken)
     {
         reportStatus?.Invoke("Preparing board reader...");
         await EnsureReaderAsync(cancellationToken);
@@ -58,6 +71,14 @@ public sealed class ScrabblerWorkflowService
 
     public async Task<IReadOnlyList<Move>> SolveAsync(string rackText, int limit = 10, CancellationToken cancellationToken = default)
     {
+        return await _backgroundTasks.RunAsync(
+            "Solve Scrabbler board",
+            async token => await SolveCoreAsync(rackText, limit, token),
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<Move>> SolveCoreAsync(string rackText, int limit, CancellationToken cancellationToken)
+    {
         if (_session.Board is null)
         {
             throw new InvalidOperationException("Read a board before solving.");
@@ -76,7 +97,10 @@ public sealed class ScrabblerWorkflowService
 
     public async Task WarmDictionaryAsync(CancellationToken cancellationToken = default)
     {
-        await EnsureSolverAsync(cancellationToken);
+        await _backgroundTasks.RunAsync(
+            "Load Scrabbler dictionary",
+            async token => await EnsureSolverAsync(token),
+            cancellationToken);
     }
 
     public void StartWarmDictionaryInBackground()

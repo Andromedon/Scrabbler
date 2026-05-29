@@ -109,13 +109,13 @@ public struct DictionaryLoadResult: Sendable {
 }
 
 private struct DictionarySourceMetadata: Codable, Equatable {
-    let path: String
+    let identifier: String
     let size: UInt64
     let modificationTime: TimeInterval
 
     init(url: URL) throws {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        self.path = url.path
+        self.identifier = url.lastPathComponent
         self.size = (attributes[.size] as? NSNumber)?.uint64Value ?? 0
         self.modificationTime = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
     }
@@ -132,7 +132,7 @@ private enum DictionaryCache {
 
     static func cacheURL(for source: DictionarySourceMetadata, cacheDirectory: URL) throws -> URL {
         try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-        let digest = SHA256.hash(data: Data(source.path.utf8))
+        let digest = SHA256.hash(data: Data(source.identifier.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
         return cacheDirectory.appendingPathComponent("dictionary-\(digest).plist")

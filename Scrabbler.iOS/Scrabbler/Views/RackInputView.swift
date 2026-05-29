@@ -29,7 +29,14 @@ struct RackInputView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            .disabled(state.isBusy || !state.isDictionaryReady)
             .padding(.horizontal)
+
+            if !state.isDictionaryReady {
+                Text("Load the dictionary on Home before solving.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
         }

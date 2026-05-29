@@ -26,6 +26,7 @@ final class AppState: ObservableObject {
     @Published var status = ""
     @Published var dictionaryStatus = ""
     @Published var isDictionaryReady = false
+    @Published var isDictionaryLoading = false
     @Published var errorMessage: String?
 
     private let bonuses: [[BonusType]]
@@ -46,6 +47,9 @@ final class AppState: ObservableObject {
         self.reader = NativeBoardImageReader()
         self.letterValues = loadedValues
         self.dictionaryStatus = "Dictionary not loaded"
+    }
+
+    func loadDictionary() {
         startDictionaryLoad()
     }
 
@@ -157,8 +161,9 @@ final class AppState: ObservableObject {
     }
 
     private func startDictionaryLoad() {
-        guard solverLoadTask == nil else { return }
+        guard solver == nil, solverLoadTask == nil else { return }
         dictionaryStatus = "Loading dictionary..."
+        isDictionaryLoading = true
 
         let values = letterValues
         let task = Task.detached {
@@ -179,6 +184,7 @@ final class AppState: ObservableObject {
                 dictionary = loaded.dictionary
                 solver = loaded.solver
                 isDictionaryReady = true
+                isDictionaryLoading = false
                 dictionaryStatus = loaded.statusText
                 applyDictionaryRepairsIfPossible()
                 refreshBoardValidation()
@@ -187,6 +193,7 @@ final class AppState: ObservableObject {
                 dictionary = fallback
                 solver = MoveSolver(dictionary: fallback, letterValues: values)
                 isDictionaryReady = true
+                isDictionaryLoading = false
                 dictionaryStatus = "Fallback dictionary loaded"
                 errorMessage = error.localizedDescription
             }
@@ -198,19 +205,7 @@ final class AppState: ObservableObject {
             return solver
         }
 
-        startDictionaryLoad()
-        guard let solverLoadTask else {
-            throw ScrabblerError.emptyDictionary
-        }
-
-        let loaded = try await solverLoadTask.value
-        dictionary = loaded.dictionary
-        solver = loaded.solver
-        isDictionaryReady = true
-        dictionaryStatus = loaded.statusText
-        applyDictionaryRepairsIfPossible()
-        refreshBoardValidation()
-        return loaded.solver
+        throw ScrabblerError.dictionaryNotLoaded
     }
 
     private func applyDictionaryRepairsIfPossible() {

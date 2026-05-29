@@ -151,6 +151,7 @@ public enum ScrabblerError: LocalizedError, Equatable {
     case invalidCorrectionLetter(String)
     case missingLetterValue(Character)
     case dictionaryNotFound(String)
+    case dictionaryNotLoaded
     case emptyDictionary
 
     public var errorDescription: String? {
@@ -162,6 +163,7 @@ public enum ScrabblerError: LocalizedError, Equatable {
         case .invalidCorrectionLetter(let value): "Invalid correction letter: \(value)"
         case .missingLetterValue(let letter): "Missing value for letter '\(letter)'."
         case .dictionaryNotFound(let path): "Dictionary file was not found: \(path)"
+        case .dictionaryNotLoaded: "Load the dictionary before solving."
         case .emptyDictionary: "Dictionary did not contain any valid Polish words with length 2..15."
         }
     }

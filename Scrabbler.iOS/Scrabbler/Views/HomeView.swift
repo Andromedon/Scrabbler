@@ -21,12 +21,30 @@ struct HomeView: View {
             .buttonStyle(.borderedProminent)
             .padding(.horizontal)
 
+            Button {
+                state.loadDictionary()
+            } label: {
+                if state.isDictionaryLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                } else {
+                    Text(state.isDictionaryReady ? "Dictionary Loaded" : "Load Dictionary")
+                        .font(.title3.bold())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(state.isDictionaryReady || state.isDictionaryLoading)
+            .padding(.horizontal)
+
             if state.isBusy {
                 ProgressView(state.status)
             }
 
             VStack(spacing: 6) {
-                if !state.isDictionaryReady {
+                if state.isDictionaryLoading {
                     ProgressView()
                 }
                 Text(state.dictionaryStatus)

@@ -43,15 +43,6 @@ struct HomeView: View {
                 ProgressView(state.status)
             }
 
-            VStack(spacing: 6) {
-                if state.isDictionaryLoading {
-                    ProgressView()
-                }
-                Text(state.dictionaryStatus)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
             Spacer()
         }
         .navigationTitle("Home")

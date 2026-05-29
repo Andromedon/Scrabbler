@@ -24,6 +24,7 @@ final class AppState: ObservableObject {
     @Published var autoRepairedCellKeys: Set<String> = []
     @Published var isBusy = false
     @Published var status = ""
+    @Published var lastSolveTiming = ""
     @Published var dictionaryStatus = ""
     @Published var isDictionaryReady = false
     @Published var isDictionaryCacheAvailable = false
@@ -119,20 +120,35 @@ final class AppState: ObservableObject {
     func solve() {
         isBusy = true
         status = "Solving..."
+        lastSolveTiming = ""
 
         Task {
             do {
                 let rack = try Rack.parse(rackText)
+                let solverWasLive = solver != nil
+                let totalStartedAt = Date()
+                let solverLoadStartedAt = Date()
                 let loadedSolver = try await solverForUse()
+                let solverLoadSeconds = Date().timeIntervalSince(solverLoadStartedAt)
                 let currentBoard = board
+                status = "Finding moves..."
+                let solveStartedAt = Date()
                 let moves = try await Task.detached {
                     try loadedSolver.findBestMoves(board: currentBoard, rack: rack, limit: 50)
                 }.value
+                let solveSeconds = Date().timeIntervalSince(solveStartedAt)
+                let totalSeconds = Date().timeIntervalSince(totalStartedAt)
                 await MainActor.run {
                     results = moves.sorted { lhs, rhs in
                         if lhs.score != rhs.score { return lhs.score > rhs.score }
                         return lhs.word < rhs.word
                     }
+                    lastSolveTiming = Self.solveTimingText(
+                        solverWasLive: solverWasLive,
+                        solverLoadSeconds: solverLoadSeconds,
+                        solveSeconds: solveSeconds,
+                        totalSeconds: totalSeconds
+                    )
                     selectedMove = results.first
                     screen = .results
                     isBusy = false
@@ -325,6 +341,24 @@ final class AppState: ObservableObject {
 
     private static func cellKey(row: Int, column: Int) -> String {
         "\(row):\(column)"
+    }
+
+    private static func solveTimingText(
+        solverWasLive: Bool,
+        solverLoadSeconds: TimeInterval,
+        solveSeconds: TimeInterval,
+        totalSeconds: TimeInterval
+    ) -> String {
+        let source = solverWasLive ? "solver in memory" : "solver loaded from cache"
+        return "\(source) · prepare \(formatSeconds(solverLoadSeconds)) · solve \(formatSeconds(solveSeconds)) · total \(formatSeconds(totalSeconds))"
+    }
+
+    private static func formatSeconds(_ seconds: TimeInterval) -> String {
+        if seconds < 1 {
+            return "\(Int((seconds * 1_000).rounded())) ms"
+        }
+
+        return String(format: "%.1f s", seconds)
     }
 }
 

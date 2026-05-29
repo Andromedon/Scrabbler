@@ -38,6 +38,12 @@ struct RackInputView: View {
                     .foregroundStyle(.secondary)
             }
 
+            if state.isBusy, !state.status.isEmpty {
+                Text(state.status)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Spacer()
         }
         .padding(.top, 40)

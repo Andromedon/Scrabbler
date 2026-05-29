@@ -12,6 +12,14 @@ struct ResultsView: View {
                     .frame(maxHeight: 260)
             }
 
+            if !state.lastSolveTiming.isEmpty {
+                Text(state.lastSolveTiming)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+
             List(state.results, id: \.stableID) { move in
                 Button {
                     state.selectedMove = move

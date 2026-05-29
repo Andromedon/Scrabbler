@@ -83,6 +83,7 @@ final class AppState: ObservableObject {
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
             refreshBoardValidation()
             screen = .boardCorrection
+            warmDictionaryForBoardReviewIfAvailable()
         } catch {
             board = Board(bonuses: bonuses)
             lastCellReads = []
@@ -273,6 +274,21 @@ final class AppState: ObservableObject {
         applyDictionaryRepairsIfPossible()
         refreshBoardValidation()
         return loaded.solver
+    }
+
+    private func warmDictionaryForBoardReviewIfAvailable() {
+        guard !board.isEmpty, !lastCellReads.isEmpty, solver == nil, isDictionaryCacheAvailable else {
+            return
+        }
+
+        boardValidationStatus = "Loading dictionary for board validation..."
+        Task {
+            do {
+                _ = try await loadCachedSolverForUse()
+            } catch {
+                boardValidationStatus = "Board validation waits for dictionary."
+            }
+        }
     }
 
     private func solverForUse() async throws -> MoveSolver {

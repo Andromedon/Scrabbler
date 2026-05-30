@@ -128,6 +128,28 @@ struct DictionaryBoardRepairerTests {
         #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("ŚRODY"))
     }
 
+    @Test func dropsLowConfidenceEdgeFalsePositiveAndFillsGap() {
+        let board = emptyBoard()
+            .setCell(row: 1, column: 5, letter: "W")
+            .setCell(row: 1, column: 6, letter: "M")
+            .setCell(row: 1, column: 7, letter: "Ą")
+            .setCell(row: 1, column: 8, letter: "C")
+            .setCell(row: 1, column: 10, letter: "E")
+        let result = BoardReadResult(board: board, cells: [
+            cell(row: 1, column: 5, letter: "W", confidence: 0.50, candidates: [
+                LetterCandidate(letter: "W", distance: 0.50)
+            ]),
+            CellRead(row: 1, column: 9, letter: nil, confidence: 0)
+        ])
+
+        let repaired = repairer(words: "MĄCIE").repair(result)
+
+        #expect(repaired.board[1, 5].letter == nil)
+        #expect(repaired.board[1, 9].letter == "I")
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("MĄCIE"))
+        #expect(repaired.appliedRepairs.contains { $0.row == 1 && $0.column == 5 && $0.originalLetter == "W" && $0.repairedLetter == nil })
+    }
+
     private func emptyBoard() -> Board {
         Board(bonuses: Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size))
     }

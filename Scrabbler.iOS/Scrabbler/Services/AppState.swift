@@ -316,7 +316,8 @@ final class AppState: ObservableObject {
         autoRepairStatus = repaired.appliedRepairs
             .map { repair in
                 let from = repair.originalLetter.map(String.init) ?? "."
-                return "\(coordinate(repair.row, repair.column)) \(from)→\(repair.repairedLetter)"
+                let to = repair.repairedLetter.map(String.init) ?? "."
+                return "\(coordinate(repair.row, repair.column)) \(from)→\(to)"
             }
             .joined(separator: ", ")
     }

@@ -59,7 +59,7 @@ public struct BoardRepair: Equatable, Sendable {
     public let row: Int
     public let column: Int
     public let originalLetter: Character?
-    public let repairedLetter: Character
+    public let repairedLetter: Character?
     public let reason: String
 }
 
@@ -215,12 +215,16 @@ public struct DictionaryBoardRepairer: Sendable {
 
         for _ in 0..<32 {
             let invalidWords = invalidWords(on: board)
-            guard let repair = bestRepair(on: board, invalidWords: invalidWords, cellsByKey: cellsByKey) else {
+            guard let candidate = bestRepair(on: board, invalidWords: invalidWords, cellsByKey: cellsByKey) else {
                 break
             }
 
-            board = board.setCell(row: repair.row, column: repair.column, letter: repair.repairedLetter)
-            repairs.append(repair)
+            if candidate.repairs.allSatisfy({ board[$0.row, $0.column].letter == $0.repairedLetter }) {
+                break
+            }
+
+            board = candidate.board
+            repairs.append(contentsOf: candidate.repairs)
         }
 
         guard !repairs.isEmpty else { return result }
@@ -245,18 +249,21 @@ public struct DictionaryBoardRepairer: Sendable {
         return BoardReadResult(board: board, cells: updatedCells, appliedRepairs: result.appliedRepairs + repairs)
     }
 
-    private func bestRepair(on board: Board, invalidWords: [BoardWord], cellsByKey: [String: CellRead]) -> BoardRepair? {
+    private func bestRepair(on board: Board, invalidWords: [BoardWord], cellsByKey: [String: CellRead]) -> RepairCandidate? {
         let rawCandidates = (invalidWords
             .flatMap { repairCandidates(for: $0, on: board, cellsByKey: cellsByKey) }
             + gapRepairCandidates(on: board, cellsByKey: cellsByKey))
             .filter { candidate in
-                affectedWords(on: candidate.board, row: candidate.repair.row, column: candidate.repair.column)
+                candidate.repairs.flatMap { affectedWords(on: candidate.board, row: $0.row, column: $0.column) }
                     .allSatisfy { dictionary.contains($0.text) }
             }
 
         var deduplicated: [String: RepairCandidate] = [:]
         for candidate in rawCandidates {
-            let key = "\(candidate.repair.row):\(candidate.repair.column):\(candidate.repair.originalLetter.map(String.init) ?? "."):\(candidate.repair.repairedLetter)"
+            let key = candidate.repairs
+                .map { "\($0.row):\($0.column):\($0.originalLetter.map(String.init) ?? "."):\($0.repairedLetter.map(String.init) ?? ".")" }
+                .sorted()
+                .joined(separator: "|")
             if let existing = deduplicated[key] {
                 if candidate.invalidWordReduction > existing.invalidWordReduction ||
                     candidate.invalidWordReduction == existing.invalidWordReduction && candidate.score > existing.score {
@@ -282,7 +289,7 @@ public struct DictionaryBoardRepairer: Sendable {
             return nil
         }
 
-        return best.repair
+        return best
     }
 
     private func gapRepairCandidates(on board: Board, cellsByKey: [String: CellRead]) -> [RepairCandidate] {
@@ -369,23 +376,26 @@ public struct DictionaryBoardRepairer: Sendable {
         }
 
         guard emptyCount == 1,
-              cells.count > 2,
-              let words = dictionary.wordsByLength[cells.count] else {
+              cells.count > 2 else {
             return nil
         }
 
         let beforeInvalid = invalidWords(on: board).count
-        let matches = words
-            .compactMap { word in
-                buildGapCandidate(
-                    on: board,
-                    cells: cells,
-                    word: word,
-                    gapRow: row,
-                    gapColumn: column,
-                    cellsByKey: cellsByKey,
-                    beforeInvalid: beforeInvalid
-                )
+        let matches = gapCellVariants(cells, cellsByKey: cellsByKey)
+            .flatMap { variant -> [RepairCandidate] in
+                guard let words = dictionary.wordsByLength[variant.cells.count] else { return [] }
+                return words.compactMap { word in
+                    buildGapCandidate(
+                        on: board,
+                        cells: variant.cells,
+                        droppedEdgeCell: variant.droppedEdgeCell,
+                        word: word,
+                        gapRow: row,
+                        gapColumn: column,
+                        cellsByKey: cellsByKey,
+                        beforeInvalid: beforeInvalid
+                    )
+                }
             }
             .sorted { lhs, rhs in
                 if lhs.invalidWordReduction != rhs.invalidWordReduction {
@@ -398,9 +408,46 @@ public struct DictionaryBoardRepairer: Sendable {
         return matches[0]
     }
 
+    private func gapCellVariants(
+        _ cells: [(row: Int, column: Int, letter: Character?)],
+        cellsByKey: [String: CellRead]
+    ) -> [(cells: [(row: Int, column: Int, letter: Character?)], droppedEdgeCell: (row: Int, column: Int, letter: Character?)?)] {
+        var variants: [(cells: [(row: Int, column: Int, letter: Character?)], droppedEdgeCell: (row: Int, column: Int, letter: Character?)?)] = [
+            (cells, nil)
+        ]
+
+        if let first = cells.first,
+           canDropEdgeCell(first, cellsByKey: cellsByKey),
+           cells.dropFirst().count > 2 {
+            variants.append((Array(cells.dropFirst()), first))
+        }
+
+        if let last = cells.last,
+           canDropEdgeCell(last, cellsByKey: cellsByKey),
+           cells.dropLast().count > 2 {
+            variants.append((Array(cells.dropLast()), last))
+        }
+
+        return variants
+    }
+
+    private func canDropEdgeCell(
+        _ cell: (row: Int, column: Int, letter: Character?),
+        cellsByKey: [String: CellRead]
+    ) -> Bool {
+        guard let letter = cell.letter,
+              let read = cellsByKey[Self.key(row: cell.row, column: cell.column)],
+              read.letter == letter else {
+            return false
+        }
+
+        return read.confidence < 0.72
+    }
+
     private func buildGapCandidate(
         on board: Board,
         cells: [(row: Int, column: Int, letter: Character?)],
+        droppedEdgeCell: (row: Int, column: Int, letter: Character?)?,
         word: String,
         gapRow: Int,
         gapColumn: Int,
@@ -413,6 +460,19 @@ public struct DictionaryBoardRepairer: Sendable {
         var repairedBoard = board
         var repairs: [BoardRepair] = []
         var score = Double(word.count)
+
+        if let droppedEdgeCell,
+           let droppedLetter = droppedEdgeCell.letter {
+            repairedBoard = repairedBoard.setCell(row: droppedEdgeCell.row, column: droppedEdgeCell.column, letter: nil)
+            repairs.append(BoardRepair(
+                row: droppedEdgeCell.row,
+                column: droppedEdgeCell.column,
+                originalLetter: droppedLetter,
+                repairedLetter: nil,
+                reason: "dictionary: edge false positive"
+            ))
+            score += 0.45
+        }
 
         for index in expectedLetters.indices {
             let cell = cells[index]
@@ -463,7 +523,7 @@ public struct DictionaryBoardRepairer: Sendable {
         let afterInvalid = invalidWords(on: repairedBoard).count
         return RepairCandidate(
             board: repairedBoard,
-            repair: repairs[0],
+            repairs: repairs,
             invalidWordReduction: max(1, beforeInvalid - afterInvalid),
             score: score
         )
@@ -519,7 +579,7 @@ public struct DictionaryBoardRepairer: Sendable {
                 )
                 candidates.append(RepairCandidate(
                     board: repairedBoard,
-                    repair: repair,
+                    repairs: [repair],
                     invalidWordReduction: beforeInvalid - afterInvalid,
                     score: scoreReplacement(cell: cell, replacement: replacement)
                 ))
@@ -609,7 +669,7 @@ public struct DictionaryBoardRepairer: Sendable {
 
 private struct RepairCandidate {
     let board: Board
-    let repair: BoardRepair
+    let repairs: [BoardRepair]
     let invalidWordReduction: Int
     let score: Double
 }

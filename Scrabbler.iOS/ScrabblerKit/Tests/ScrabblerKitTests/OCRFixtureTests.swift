@@ -67,8 +67,7 @@ struct OCRFixtureTests {
         })
     }
 
-    @Test(.disabled("Native Vision currently maps MĄCIE with an extra leading W; needs edge false-positive removal."))
-    func repairsMissedTileAndNeighborSubstitutionInRealBoard7403() async throws {
+    @Test func repairsMissedTileAndEdgeFalsePositiveInRealBoard7403() async throws {
         let result = try await readFixture("board-real-7403.jpg")
 
         let repaired = DictionaryBoardRepairer(
@@ -76,6 +75,7 @@ struct OCRFixtureTests {
             letterValues: try BundledDataLoader.loadLetterValues()
         ).repair(result)
 
+        #expect(repaired.board[1, 5].letter == nil)
         #expect(repaired.board[1, 8].letter == "C")
         #expect(repaired.board[1, 9].letter == "I")
         #expect(boardLines(repaired.board).contains("MĄCIE"))

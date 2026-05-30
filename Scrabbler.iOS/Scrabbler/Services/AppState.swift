@@ -286,7 +286,7 @@ final class AppState: ObservableObject {
             do {
                 _ = try await loadCachedSolverForUse()
             } catch {
-                boardValidationStatus = "Board validation waits for dictionary."
+                boardValidationStatus = boardValidationWaitingText()
             }
         }
     }
@@ -329,7 +329,7 @@ final class AppState: ObservableObject {
         }
 
         guard let dictionary else {
-            boardValidationStatus = "Board validation waits for dictionary."
+            boardValidationStatus = boardValidationWaitingText()
             return
         }
 
@@ -358,6 +358,16 @@ final class AppState: ObservableObject {
 
     private static func cellKey(row: Int, column: Int) -> String {
         "\(row):\(column)"
+    }
+
+    private func boardValidationWaitingText() -> String {
+        if isDictionaryLoading || solverLoadTask != nil {
+            return "Loading dictionary for board validation..."
+        }
+        if isDictionaryCacheAvailable {
+            return "Board validation will run from cached dictionary."
+        }
+        return "Load Dictionary to validate board words."
     }
 
     private static func solveTimingText(

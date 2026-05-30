@@ -140,6 +140,35 @@ struct OCRFixtureTests {
         #expect(boardLines(repaired.board).contains("MĄCIE"))
     }
 
+    @Test(
+        "repairs dictionary-backed parity gaps",
+        arguments: [
+            ("board-real-7295.jpg", "ANIMĄ"),
+            ("board-real-7295.jpg", "SROCZYMI"),
+            ("board-real-7330.jpg", "DLAŃ"),
+            ("board-real-7331.jpg", "REJ")
+        ]
+    )
+    private func repairsDictionaryBackedDiacriticParityGaps(fileName: String, expectedWord: String) async throws {
+        let result = try await readFixture(fileName)
+
+        let repaired = DictionaryBoardRepairer(
+            dictionary: PolishWordDictionary.fromWords(dictionaryWords(for: expectedWord)),
+            letterValues: try BundledDataLoader.loadLetterValues()
+        ).repair(result)
+
+        #expect(boardLines(repaired.board).contains(expectedWord))
+    }
+
+    private func dictionaryWords(for expectedWord: String) -> [String] {
+        switch expectedWord {
+        case "SROCZYMI":
+            [expectedWord, "OM"]
+        default:
+            [expectedWord]
+        }
+    }
+
     private func readFixture(_ fileName: String) async throws -> BoardReadResult {
         let url = try fixtureURL(fileName)
         let bonuses = try BundledDataLoader.loadBonusLayout()

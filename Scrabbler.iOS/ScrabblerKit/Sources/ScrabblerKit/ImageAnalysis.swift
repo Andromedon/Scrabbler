@@ -646,7 +646,10 @@ public struct DictionaryBoardRepairer: Sendable {
 
         if let digit = cell.detectedScoreDigit {
             replacements = replacements.filter { letter in
-                isDiacriticVariant(current, letter) || letterValues[letter] == nil || letterValues[letter] == digit
+                isDiacriticVariant(current, letter)
+                    || likelyConfusions(for: current).contains(letter)
+                    || letterValues[letter] == nil
+                    || letterValues[letter] == digit
             }
         }
 
@@ -661,6 +664,10 @@ public struct DictionaryBoardRepairer: Sendable {
         case "O": ["D", "C", "Ó"]
         case "C": ["O", "Ć"]
         case "B": ["D"]
+        case "F": ["R"]
+        case "R": ["F"]
+        case "M": ["W"]
+        case "W": ["M"]
         case "A": ["Ą"]
         case "Ą": ["A"]
         case "Ć": ["C"]

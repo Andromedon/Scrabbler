@@ -110,7 +110,11 @@ public struct NativeBoardImageReader: BoardImageReading {
                       PolishAlphabet.isPolishLetter(letter),
                       let box = try? recognized.boundingBox(for: range),
                       let coordinate = mapper.coordinate(for: box.boundingBox),
-                      sampler.cellLooksOccupied(row: coordinate.row, column: coordinate.column) else {
+                      sampler.cellLooksOccupied(
+                        row: coordinate.row,
+                        column: coordinate.column,
+                        bonus: bonuses[coordinate.row][coordinate.column]
+                      ) else {
                     continue
                 }
 
@@ -138,7 +142,7 @@ public struct NativeBoardImageReader: BoardImageReading {
         for row in 0..<Board.size {
             for column in 0..<Board.size {
                 let key = "\(row):\(column)"
-                guard sampler.cellLooksOccupied(row: row, column: column) else {
+                guard sampler.cellLooksOccupied(row: row, column: column, bonus: bonuses[row][column]) else {
                     continue
                 }
 
@@ -1552,9 +1556,11 @@ private final class BoardColorSampler {
         self.pixels = data
     }
 
-    func cellLooksOccupied(row: Int, column: Int) -> Bool {
+    func cellLooksOccupied(row: Int, column: Int, bonus: BonusType) -> Bool {
         let rect = mapper.sampleRect(row: row, column: column)
         var orangePixels = 0
+        var darkPixels = 0
+        var whitePixels = 0
         var sampledPixels = 0
 
         let minX = max(0, Int(rect.minX))
@@ -1572,8 +1578,18 @@ private final class BoardColorSampler {
                 let green = Int(pixels[offset + 1])
                 let blue = Int(pixels[offset + 2])
                 sampledPixels += 1
+                if isRedBadge(red: red, green: green, blue: blue) {
+                    x += step
+                    continue
+                }
                 if red >= 190 && green >= 120 && green <= 210 && blue <= 130 && red > blue + 70 {
                     orangePixels += 1
+                }
+                if red < 80 && green < 80 && blue < 80 {
+                    darkPixels += 1
+                }
+                if red > 230 && green > 230 && blue > 230 {
+                    whitePixels += 1
                 }
                 x += step
             }
@@ -1581,7 +1597,20 @@ private final class BoardColorSampler {
         }
 
         guard sampledPixels > 0 else { return false }
-        return Double(orangePixels) / Double(sampledPixels) > 0.35
+        let orangeRatio = Double(orangePixels) / Double(sampledPixels)
+        let darkRatio = Double(darkPixels) / Double(sampledPixels)
+        let whiteRatio = Double(whitePixels) / Double(sampledPixels)
+
+        guard orangeRatio >= 0.35 else { return false }
+        if darkRatio > 0.01 { return true }
+        if bonus == .doubleWord {
+            return whiteRatio > 0.08
+        }
+        return whiteRatio > 0.025
+    }
+
+    private func isRedBadge(red: Int, green: Int, blue: Int) -> Bool {
+        red > 180 && green < 95 && blue < 95 && Double(red) > Double(green) * 1.8
     }
 
     func pixel(x: Int, y: Int) -> RGBPixel? {

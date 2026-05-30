@@ -209,10 +209,10 @@ public enum BundledDataLoader {
         return decoded.map { row in
             row.map { value in
                 switch value {
-                case "DL": .doubleLetter
-                case "TL": .tripleLetter
-                case "DW": .doubleWord
-                case "TW": .tripleWord
+                case "2L", "DL": .doubleLetter
+                case "3L", "TL": .tripleLetter
+                case "2W", "DW": .doubleWord
+                case "3W", "TW": .tripleWord
                 default: .none
                 }
             }

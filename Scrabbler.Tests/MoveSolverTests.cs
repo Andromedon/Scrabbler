@@ -22,6 +22,21 @@ public sealed class MoveSolverTests
     }
 
     [Fact]
+    public void BundledBonusLayoutScoresFirstMoveCenterDoubleWord()
+    {
+        var solver = new MoveSolver(PolishWordDictionary.FromWords(["WYLEJĘ"]), LoadBundledLetterValues());
+        var board = new Board(LoadBundledBonuses());
+
+        var moves = solver.FindBestMoves(board, Rack.Parse("WYLEJĘ"), 10);
+
+        Assert.Equal(BonusType.DoubleWord, board[7, 7].Bonus);
+        Assert.NotEmpty(moves);
+        Assert.Contains(
+            moves,
+            move => move.Score == 28 && move.PlacedTiles.Any(tile => tile is { Row: 7, Column: 7 }));
+    }
+
+    [Fact]
     public void LaterMoveMustConnectToExistingTiles()
     {
         var solver = SolverForWords("KOT");
@@ -190,6 +205,22 @@ public sealed class MoveSolverTests
             ['Z'] = 1,
             ['Ż'] = 5
         };
+    }
+
+    private static BonusType[,] LoadBundledBonuses()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../Scrabbler.Assets/Data/bonus-layout.json"));
+        return BonusLayoutLoader.Load(path);
+    }
+
+    private static IReadOnlyDictionary<char, int> LoadBundledLetterValues()
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "../../../../Scrabbler.Assets/Data/letter-values-pl.json"));
+        return LetterValuesLoader.Load(path);
     }
 
     private static string DescribeMove(Move move)

@@ -14,6 +14,22 @@ struct MoveSolverTests {
         #expect(moves.contains { $0.placedTiles.contains { $0.row == 7 && $0.column == 7 } })
     }
 
+    @Test func bundledBonusLayoutScoresFirstMoveCenterDoubleWord() throws {
+        let solver = MoveSolver(
+            dictionary: PolishWordDictionary.fromWords(["WYLEJĘ"]),
+            letterValues: try BundledDataLoader.loadLetterValues()
+        )
+        let board = Board(bonuses: try BundledDataLoader.loadBonusLayout())
+
+        let moves = try solver.findBestMoves(board: board, rack: try Rack.parse("WYLEJĘ"), limit: 10)
+
+        #expect(board[7, 7].bonus == .doubleWord)
+        #expect(!moves.isEmpty)
+        #expect(moves.contains { move in
+            move.score == 28 && move.placedTiles.contains { $0.row == 7 && $0.column == 7 }
+        })
+    }
+
     @Test func laterMoveMustConnectToExistingTiles() throws {
         let solver = solverForWords("KOT")
         let board = emptyBoardWithCenterDoubleWord().setCell(row: 7, column: 7, letter: "A")

@@ -39,6 +39,14 @@ struct HomeView: View {
             .disabled(state.isDictionaryReady || state.isDictionaryCacheAvailable || state.isDictionaryLoading)
             .padding(.horizontal)
 
+            if !state.dictionaryStatus.isEmpty {
+                Text(state.dictionaryStatus)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+
             if state.isBusy {
                 ProgressView(state.status)
             }

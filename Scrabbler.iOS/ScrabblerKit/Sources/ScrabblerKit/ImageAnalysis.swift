@@ -93,6 +93,7 @@ public struct NativeBoardImageReader: BoardImageReading {
         let observations = try recognizeText(in: imageURL)
         let mapper = BoardImageMapper(width: image.width, height: image.height)
         let sampler = BoardColorSampler(image: image, mapper: mapper)
+        let glyphRecognizer = try? TileGlyphRecognizer(letterValues: BundledDataLoader.loadLetterValues())
 
         var readsByCell: [String: CellRead] = [:]
         for observation in observations {
@@ -135,17 +136,21 @@ public struct NativeBoardImageReader: BoardImageReading {
         for row in 0..<Board.size {
             for column in 0..<Board.size {
                 let key = "\(row):\(column)"
-                guard readsByCell[key] == nil,
-                      sampler.cellLooksOccupied(row: row, column: column) else {
+                guard sampler.cellLooksOccupied(row: row, column: column) else {
                     continue
                 }
 
-                readsByCell[key] = CellRead(
-                    row: row,
-                    column: column,
-                    letter: nil,
-                    confidence: 0
-                )
+                let glyphRead = glyphRecognizer?.recognize(row: row, column: column, mapper: mapper, sampler: sampler)
+                if let existing = readsByCell[key] {
+                    readsByCell[key] = merge(existing: existing, glyph: glyphRead)
+                } else {
+                    readsByCell[key] = glyphRead ?? CellRead(
+                        row: row,
+                        column: column,
+                        letter: nil,
+                        confidence: 0
+                    )
+                }
             }
         }
 
@@ -166,6 +171,45 @@ public struct NativeBoardImageReader: BoardImageReading {
         }
 
         return BoardReadResult(board: board, cells: cells)
+    }
+
+    private func merge(existing: CellRead, glyph: CellRead?) -> CellRead {
+        guard let glyph else { return existing }
+
+        let selectedLetter: Character?
+        let selectedConfidence: Double
+        if glyph.letter != nil && (existing.letter == nil || glyph.confidence > existing.confidence + 0.15) {
+            selectedLetter = glyph.letter
+            selectedConfidence = glyph.confidence
+        } else {
+            selectedLetter = existing.letter
+            selectedConfidence = existing.confidence
+        }
+
+        return CellRead(
+            row: existing.row,
+            column: existing.column,
+            letter: selectedLetter,
+            isBlank: existing.isBlank,
+            confidence: selectedConfidence,
+            candidates: mergeCandidates(existing.candidates, glyph.candidates),
+            detectedScoreDigit: glyph.detectedScoreDigit ?? existing.detectedScoreDigit
+        )
+    }
+
+    private func mergeCandidates(_ first: [LetterCandidate], _ second: [LetterCandidate]) -> [LetterCandidate] {
+        var byLetter: [Character: LetterCandidate] = [:]
+        for candidate in first + second {
+            if let existing = byLetter[candidate.letter], existing.distance <= candidate.distance {
+                continue
+            }
+            byLetter[candidate.letter] = candidate
+        }
+
+        return byLetter.values.sorted {
+            if $0.distance != $1.distance { return $0.distance < $1.distance }
+            return String($0.letter) < String($1.letter)
+        }
     }
 
     private func recognizeText(in imageURL: URL) throws -> [VNRecognizedTextObservation] {
@@ -599,7 +643,9 @@ public struct DictionaryBoardRepairer: Sendable {
         }
 
         if let digit = cell.detectedScoreDigit {
-            replacements = replacements.filter { letterValues[$0] == nil || letterValues[$0] == digit }
+            replacements = replacements.filter { letter in
+                isDiacriticVariant(current, letter) || letterValues[letter] == nil || letterValues[letter] == digit
+            }
         }
 
         return replacements
@@ -674,6 +720,439 @@ private struct RepairCandidate {
     let score: Double
 }
 
+private struct TileGlyphRecognizer {
+    private static let maskSize = 32
+
+    private let letterValues: [Character: Int]
+    private let samples: [LetterSample]
+
+    init(letterValues: [Character: Int]) throws {
+        self.letterValues = letterValues
+        self.samples = try Self.loadSamples(letterValues: letterValues)
+    }
+
+    private init(letterValues: [Character: Int], samples: [LetterSample]) {
+        self.letterValues = letterValues
+        self.samples = samples
+    }
+
+    func recognize(row: Int, column: Int, mapper: BoardImageMapper, sampler: BoardColorSampler) -> CellRead? {
+        let bounds = mapper.cellBounds(row: row, column: column).insetBy(
+            dx: mapper.cellBounds(row: row, column: column).width * 0.035,
+            dy: mapper.cellBounds(row: row, column: column).height * 0.035
+        )
+        guard let shapeMask = extractShapeMask(sampler: sampler, bounds: bounds),
+              let tileMask = extractTileMask(sampler: sampler, bounds: bounds) else {
+            let digit = recognizeScoreDigit(sampler: sampler, bounds: bounds)
+            return CellRead(row: row, column: column, letter: nil, confidence: 0, detectedScoreDigit: digit)
+        }
+
+        let digit = recognizeScoreDigit(sampler: sampler, bounds: bounds)
+        let candidates = samples
+            .map { sample -> (letter: Character, score: Double) in
+                let score = similarity(shapeMask, sample.shapeMask) * 0.70
+                    + similarity(tileMask, sample.tileMask) * 0.30
+                return (sample.letter, score)
+            }
+            .sorted {
+                if $0.score != $1.score { return $0.score > $1.score }
+                return String($0.letter) < String($1.letter)
+            }
+
+        guard let selected = selectCandidate(candidates, scoreDigit: digit) else {
+            return CellRead(row: row, column: column, letter: nil, confidence: 0, detectedScoreDigit: digit)
+        }
+
+        let secondScore = candidates
+            .filter { $0.letter != selected.letter }
+            .map(\.score)
+            .max() ?? 0
+        let confidence = calculateConfidence(score: selected.score, secondScore: secondScore, scoreDigit: digit, letter: selected.letter)
+        let publicCandidates = candidates.prefix(8).map {
+            LetterCandidate(letter: $0.letter, distance: max(0, 1 - $0.score), matchedScoreDigit: digit)
+        }
+
+        return CellRead(
+            row: row,
+            column: column,
+            letter: confidence < 0.10 ? nil : selected.letter,
+            confidence: confidence,
+            candidates: publicCandidates,
+            detectedScoreDigit: digit
+        )
+    }
+
+    private func selectCandidate(_ candidates: [(letter: Character, score: Double)], scoreDigit: Int?) -> (letter: Character, score: Double)? {
+        guard let top = candidates.first else { return nil }
+        guard let scoreDigit else { return top }
+        if letterValues[top.letter] == scoreDigit {
+            return top
+        }
+
+        guard let matched = candidates
+            .filter({ letterValues[$0.letter] == scoreDigit })
+            .max(by: { $0.score < $1.score }) else {
+            return top
+        }
+
+        let threshold = isNhPair(top.letter, matched.letter) ? 0.82 : 0.88
+        return matched.score >= top.score * threshold ? matched : top
+    }
+
+    private func calculateConfidence(score: Double, secondScore: Double, scoreDigit: Int?, letter: Character) -> Double {
+        let margin = max(0, score - secondScore)
+        var confidence = score * 0.75 + margin * 0.9
+        if let scoreDigit {
+            confidence += letterValues[letter] == scoreDigit ? 0.14 : -0.10
+        }
+        return min(1, max(0, confidence))
+    }
+
+    private func recognizeScoreDigit(sampler: BoardColorSampler, bounds: CGRect) -> Int? {
+        let scoreBounds = CGRect(
+            x: bounds.minX + bounds.width * 0.55,
+            y: bounds.minY,
+            width: max(1, bounds.width * 0.40),
+            height: max(1, bounds.height * 0.32)
+        )
+        guard let mask = extractScoreMask(sampler: sampler, bounds: scoreBounds) else { return nil }
+        return recognizeDigitByShape(mask)
+    }
+
+    private func recognizeDigitByShape(_ glyph: [Bool]) -> Int? {
+        let points = glyphPoints(glyph)
+        guard !points.isEmpty else { return nil }
+
+        let width = (points.map(\.x).max() ?? 0) - (points.map(\.x).min() ?? 0) + 1
+        let height = (points.map(\.y).max() ?? 0) - (points.map(\.y).min() ?? 0) + 1
+        if width <= 12 && height >= 18 {
+            return 1
+        }
+
+        let middle = density(glyph, y1: 12, y2: 19, x1: 5, x2: 27)
+        let bottom = density(glyph, y1: 24, y2: 31, x1: 4, x2: 28)
+        let lowerLeft = density(glyph, y1: 17, y2: 28, x1: 2, x2: 13)
+        let lowerRight = density(glyph, y1: 17, y2: 28, x1: 19, x2: 30)
+        let upperLeft = density(glyph, y1: 4, y2: 13, x1: 2, x2: 14)
+        let upperRight = density(glyph, y1: 4, y2: 13, x1: 18, x2: 30)
+        if middle >= 0.015,
+           bottom >= 0.03,
+           upperLeft + upperRight >= 0.32,
+           lowerRight > lowerLeft + 0.01 || lowerLeft < 0.02 && lowerRight > 0.005 {
+            return 3
+        }
+
+        return nil
+    }
+
+    private func extractShapeMask(sampler: BoardColorSampler, bounds: CGRect) -> [Bool]? {
+        var pixels = extractForegroundPixels(sampler: sampler, bounds: bounds, includeLight: true)
+        removeScoreDigitComponents(&pixels)
+        let component = mainGlyphComponent(pixels)
+        guard component.count >= 12 else { return nil }
+        return normalize(component)
+    }
+
+    private func extractTileMask(sampler: BoardColorSampler, bounds: CGRect) -> [Bool]? {
+        var mask = [Bool](repeating: false, count: Self.maskSize * Self.maskSize)
+        var ink = 0
+        for y in 0..<Self.maskSize {
+            let sourceY = Int(bounds.minY + min(bounds.height - 1, (Double(y) + 0.5) * bounds.height / Double(Self.maskSize)))
+            for x in 0..<Self.maskSize {
+                let sourceX = Int(bounds.minX + min(bounds.width - 1, (Double(x) + 0.5) * bounds.width / Double(Self.maskSize)))
+                guard let pixel = sampler.pixel(x: sourceX, y: sourceY), !isRedBadge(pixel) else { continue }
+                let dark = isDarkGlyph(pixel)
+                let light = pixel.red > 235 && pixel.green > 235 && pixel.blue > 235 && sampler.localOrangeBackgroundNear(x: sourceX, y: sourceY, bounds: bounds)
+                if dark || light {
+                    mask[y * Self.maskSize + x] = true
+                    ink += 1
+                }
+            }
+        }
+
+        return ink < 12 ? nil : mask
+    }
+
+    private func extractScoreMask(sampler: BoardColorSampler, bounds: CGRect) -> [Bool]? {
+        let pixels = extractForegroundPixels(sampler: sampler, bounds: bounds, includeLight: true)
+        let component = scoreDigitComponent(pixels)
+        return component.count < 3 ? nil : normalize(component)
+    }
+
+    private func extractForegroundPixels(sampler: BoardColorSampler, bounds: CGRect, includeLight: Bool) -> PixelMask {
+        let minX = max(0, Int(bounds.minX))
+        let maxX = min(sampler.width - 1, Int(bounds.maxX))
+        let minY = max(0, Int(bounds.minY))
+        let maxY = min(sampler.height - 1, Int(bounds.maxY))
+        let width = max(1, maxX - minX + 1)
+        let height = max(1, maxY - minY + 1)
+        var values = [Bool](repeating: false, count: width * height)
+
+        for y in 0..<height {
+            for x in 0..<width {
+                let sourceX = minX + x
+                let sourceY = minY + y
+                guard let pixel = sampler.pixel(x: sourceX, y: sourceY), !isRedBadge(pixel) else { continue }
+                let dark = isDarkGlyph(pixel)
+                let light = includeLight && pixel.red > 235 && pixel.green > 235 && pixel.blue > 235 && sampler.localOrangeBackgroundNear(x: sourceX, y: sourceY, bounds: bounds)
+                values[y * width + x] = dark || light
+            }
+        }
+
+        return PixelMask(width: width, height: height, values: values)
+    }
+
+    private func removeScoreDigitComponents(_ pixels: inout PixelMask) {
+        for component in connectedComponents(pixels) {
+            let minX = component.map(\.x).min() ?? 0
+            let maxX = component.map(\.x).max() ?? 0
+            let minY = component.map(\.y).min() ?? 0
+            let maxY = component.map(\.y).max() ?? 0
+            let componentWidth = maxX - minX + 1
+            let componentHeight = maxY - minY + 1
+            let centerX = average(component.map(\.x))
+            let centerY = average(component.map(\.y))
+            let inScoreArea = centerX >= Double(pixels.width) * 0.55 && centerY <= Double(pixels.height) * 0.35
+            let digitSized = Double(componentWidth) <= Double(pixels.width) * 0.28 && Double(componentHeight) <= Double(pixels.height) * 0.30
+            guard inScoreArea && digitSized else { continue }
+            for point in component {
+                pixels.values[point.y * pixels.width + point.x] = false
+            }
+        }
+    }
+
+    private func scoreDigitComponent(_ pixels: PixelMask) -> [MaskPoint] {
+        connectedComponents(pixels)
+            .filter { $0.count >= 3 }
+            .map { component -> (component: [MaskPoint], minX: Int, maxX: Int, minY: Int, maxY: Int, centerX: Double, centerY: Double) in
+                (
+                    component,
+                    component.map(\.x).min() ?? 0,
+                    component.map(\.x).max() ?? 0,
+                    component.map(\.y).min() ?? 0,
+                    component.map(\.y).max() ?? 0,
+                    average(component.map(\.x)),
+                    average(component.map(\.y))
+                )
+            }
+            .filter {
+                let componentWidth = $0.maxX - $0.minX + 1
+                let componentHeight = $0.maxY - $0.minY + 1
+                return $0.centerX >= Double(pixels.width) * 0.25
+                    && $0.centerY <= Double(pixels.height) * 0.90
+                    && Double(componentWidth) <= Double(pixels.width) * 0.75
+                    && Double(componentHeight) <= Double(pixels.height) * 0.75
+            }
+            .sorted {
+                if $0.centerX != $1.centerX { return $0.centerX > $1.centerX }
+                if $0.centerY != $1.centerY { return $0.centerY < $1.centerY }
+                return $0.component.count > $1.component.count
+            }
+            .first?.component ?? []
+    }
+
+    private func mainGlyphComponent(_ pixels: PixelMask) -> [MaskPoint] {
+        let components = connectedComponents(pixels).sorted { $0.count > $1.count }
+        guard let main = components.first else { return [] }
+        let minX = main.map(\.x).min() ?? 0
+        let maxX = main.map(\.x).max() ?? 0
+        let minY = main.map(\.y).min() ?? 0
+        let maxY = main.map(\.y).max() ?? 0
+        let height = max(1, maxY - minY + 1)
+        var points = main
+
+        for component in components.dropFirst() where component.count >= 2 {
+            let componentMinX = component.map(\.x).min() ?? 0
+            let componentMaxX = component.map(\.x).max() ?? 0
+            let componentMaxY = component.map(\.y).max() ?? 0
+            let componentCenterX = average(component.map(\.x))
+            let overlapsGlyph = componentMaxX >= minX - 4
+                && componentMinX <= maxX + 4
+                && componentCenterX >= Double(minX - 4)
+                && componentCenterX <= Double(maxX + 4)
+            let sitsAboveGlyph = Double(componentMaxY) <= Double(minY) + Double(height) * 0.38
+            if overlapsGlyph && sitsAboveGlyph {
+                points.append(contentsOf: component)
+            }
+        }
+
+        return points
+    }
+
+    private func connectedComponents(_ pixels: PixelMask) -> [[MaskPoint]] {
+        var visited = [Bool](repeating: false, count: pixels.width * pixels.height)
+        var components: [[MaskPoint]] = []
+        for y in 0..<pixels.height {
+            for x in 0..<pixels.width {
+                let index = y * pixels.width + x
+                guard pixels.values[index], !visited[index] else { continue }
+                components.append(floodFill(pixels, visited: &visited, start: MaskPoint(x: x, y: y)))
+            }
+        }
+        return components
+    }
+
+    private func floodFill(_ pixels: PixelMask, visited: inout [Bool], start: MaskPoint) -> [MaskPoint] {
+        var queue = [start]
+        var cursor = 0
+        var component: [MaskPoint] = []
+        visited[start.y * pixels.width + start.x] = true
+
+        while cursor < queue.count {
+            let point = queue[cursor]
+            cursor += 1
+            component.append(point)
+
+            for direction in [MaskPoint(x: 1, y: 0), MaskPoint(x: -1, y: 0), MaskPoint(x: 0, y: 1), MaskPoint(x: 0, y: -1)] {
+                let x = point.x + direction.x
+                let y = point.y + direction.y
+                guard x >= 0, y >= 0, x < pixels.width, y < pixels.height else { continue }
+                let index = y * pixels.width + x
+                guard pixels.values[index], !visited[index] else { continue }
+                visited[index] = true
+                queue.append(MaskPoint(x: x, y: y))
+            }
+        }
+
+        return component
+    }
+
+    private func normalize(_ component: [MaskPoint]) -> [Bool] {
+        let minX = component.map(\.x).min() ?? 0
+        let maxX = component.map(\.x).max() ?? 0
+        let minY = component.map(\.y).min() ?? 0
+        let maxY = component.map(\.y).max() ?? 0
+        let sourceWidth = max(1, maxX - minX + 1)
+        let sourceHeight = max(1, maxY - minY + 1)
+        let scale = min(Double(Self.maskSize - 4) / Double(sourceWidth), Double(Self.maskSize - 4) / Double(sourceHeight))
+        let targetWidth = max(1, Int((Double(sourceWidth) * scale).rounded()))
+        let targetHeight = max(1, Int((Double(sourceHeight) * scale).rounded()))
+        let offsetX = (Self.maskSize - targetWidth) / 2
+        let offsetY = (Self.maskSize - targetHeight) / 2
+        var normalized = [Bool](repeating: false, count: Self.maskSize * Self.maskSize)
+
+        for point in component {
+            let x = offsetX + Int((Double(point.x - minX) * scale).rounded())
+            let y = offsetY + Int((Double(point.y - minY) * scale).rounded())
+            if x >= 0, y >= 0, x < Self.maskSize, y < Self.maskSize {
+                normalized[y * Self.maskSize + x] = true
+            }
+        }
+
+        return normalized
+    }
+
+    private func similarity(_ glyph: [Bool], _ template: [Bool]) -> Double {
+        var intersection = 0
+        var glyphPixels = 0
+        var templatePixels = 0
+        for index in 0..<min(glyph.count, template.count) {
+            if glyph[index] { glyphPixels += 1 }
+            if template[index] { templatePixels += 1 }
+            if glyph[index] && template[index] { intersection += 1 }
+        }
+        guard glyphPixels > 0, templatePixels > 0 else { return 0 }
+        return Double(intersection) / sqrt(Double(glyphPixels * templatePixels))
+    }
+
+    private func density(_ glyph: [Bool], y1: Int, y2: Int, x1: Int, x2: Int) -> Double {
+        var count = 0
+        var total = 0
+        for y in max(0, y1)...min(Self.maskSize - 1, y2) {
+            for x in max(0, x1)...min(Self.maskSize - 1, x2) {
+                total += 1
+                if glyph[y * Self.maskSize + x] { count += 1 }
+            }
+        }
+        return total == 0 ? 0 : Double(count) / Double(total)
+    }
+
+    private func glyphPoints(_ glyph: [Bool]) -> [MaskPoint] {
+        var points: [MaskPoint] = []
+        for y in 0..<Self.maskSize {
+            for x in 0..<Self.maskSize where glyph[y * Self.maskSize + x] {
+                points.append(MaskPoint(x: x, y: y))
+            }
+        }
+        return points
+    }
+
+    private func isNhPair(_ lhs: Character, _ rhs: Character) -> Bool {
+        lhs != rhs && (lhs == "N" || lhs == "H") && (rhs == "N" || rhs == "H")
+    }
+
+    private func isRedBadge(_ pixel: RGBPixel) -> Bool {
+        pixel.red > 180 && pixel.green < 95 && pixel.blue < 95 && Double(pixel.red) > Double(pixel.green) * 1.8
+    }
+
+    private func isDarkGlyph(_ pixel: RGBPixel) -> Bool {
+        let maxValue = max(pixel.red, max(pixel.green, pixel.blue))
+        let minValue = min(pixel.red, min(pixel.green, pixel.blue))
+        return maxValue < 190 && maxValue - minValue < 90
+    }
+
+    private func average(_ values: [Int]) -> Double {
+        values.isEmpty ? 0 : Double(values.reduce(0, +)) / Double(values.count)
+    }
+
+    private static func loadSamples(letterValues: [Character: Int]) throws -> [LetterSample] {
+        guard let urls = Bundle.module.urls(forResourcesWithExtension: "png", subdirectory: "Data/letters-samples") else {
+            return []
+        }
+
+        let rawSamples = urls.compactMap { url -> (letter: Character, image: CGImage)? in
+            let name = url.deletingPathExtension().lastPathComponent.precomposedStringWithCanonicalMapping
+            guard name.count == 1,
+                  let letter = name.first,
+                  PolishAlphabet.isPolishLetter(letter),
+                  letterValues[PolishAlphabet.normalizeLetter(letter)] != nil,
+                  let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                return nil
+            }
+            return (PolishAlphabet.normalizeLetter(letter), image)
+        }
+
+        let extractor = TileGlyphRecognizer(letterValues: letterValues, samples: [])
+        return rawSamples.compactMap { sample in
+            let mapper = BoardImageMapper(width: sample.image.width, height: sample.image.height, boardX: 0, boardY: 0, boardSize: Double(min(sample.image.width, sample.image.height)))
+            let sampler = BoardColorSampler(image: sample.image, mapper: mapper)
+            let bounds = CGRect(x: 0, y: 0, width: sample.image.width, height: sample.image.height).insetBy(
+                dx: Double(sample.image.width) * 0.035,
+                dy: Double(sample.image.height) * 0.035
+            )
+            guard let shapeMask = extractor.extractShapeMask(sampler: sampler, bounds: bounds),
+                  let tileMask = extractor.extractTileMask(sampler: sampler, bounds: bounds) else {
+                return nil
+            }
+            return LetterSample(letter: sample.letter, shapeMask: shapeMask, tileMask: tileMask)
+        }.sorted { String($0.letter) < String($1.letter) }
+    }
+}
+
+private struct LetterSample {
+    let letter: Character
+    let shapeMask: [Bool]
+    let tileMask: [Bool]
+}
+
+private struct PixelMask {
+    let width: Int
+    let height: Int
+    var values: [Bool]
+}
+
+private struct MaskPoint {
+    let x: Int
+    let y: Int
+}
+
+private struct RGBPixel {
+    let red: Int
+    let green: Int
+    let blue: Int
+}
+
 private struct BoardImageMapper {
     let width: Int
     let height: Int
@@ -687,6 +1166,14 @@ private struct BoardImageMapper {
         self.boardSize = Double(min(width, height))
         self.boardX = (Double(width) - boardSize) / 2
         self.boardY = (Double(height) - boardSize) / 2
+    }
+
+    init(width: Int, height: Int, boardX: Double, boardY: Double, boardSize: Double) {
+        self.width = width
+        self.height = height
+        self.boardX = boardX
+        self.boardY = boardY
+        self.boardSize = boardSize
     }
 
     func coordinate(for normalizedBoundingBox: CGRect) -> (row: Int, column: Int)? {
@@ -704,20 +1191,26 @@ private struct BoardImageMapper {
     }
 
     func sampleRect(row: Int, column: Int) -> CGRect {
+        cellBounds(row: row, column: column).insetBy(
+            dx: boardSize / Double(Board.size) * 0.2,
+            dy: boardSize / Double(Board.size) * 0.2
+        )
+    }
+
+    func cellBounds(row: Int, column: Int) -> CGRect {
         let cellSize = boardSize / Double(Board.size)
-        let inset = cellSize * 0.2
         return CGRect(
-            x: boardX + Double(column) * cellSize + inset,
-            y: boardY + Double(row) * cellSize + inset,
-            width: cellSize - inset * 2,
-            height: cellSize - inset * 2
+            x: boardX + Double(column) * cellSize,
+            y: boardY + Double(row) * cellSize,
+            width: cellSize,
+            height: cellSize
         )
     }
 }
 
 private final class BoardColorSampler {
-    private let width: Int
-    private let height: Int
+    let width: Int
+    let height: Int
     private let pixels: [UInt8]
     private let bytesPerRow: Int
     private let mapper: BoardImageMapper
@@ -780,6 +1273,33 @@ private final class BoardColorSampler {
 
         guard sampledPixels > 0 else { return false }
         return Double(orangePixels) / Double(sampledPixels) > 0.35
+    }
+
+    func pixel(x: Int, y: Int) -> RGBPixel? {
+        guard x >= 0, y >= 0, x < width, y < height else { return nil }
+        let offset = y * bytesPerRow + x * 4
+        return RGBPixel(
+            red: Int(pixels[offset]),
+            green: Int(pixels[offset + 1]),
+            blue: Int(pixels[offset + 2])
+        )
+    }
+
+    func localOrangeBackgroundNear(x: Int, y: Int, bounds: CGRect) -> Bool {
+        let radius = max(2, Int(min(bounds.width, bounds.height)) / 8)
+        let left = max(0, Int(bounds.minX))
+        let right = min(width - 1, Int(bounds.maxX))
+        let top = max(0, Int(bounds.minY))
+        let bottom = min(height - 1, Int(bounds.maxY))
+        for yy in max(top, y - radius)...min(bottom, y + radius) {
+            for xx in max(left, x - radius)...min(right, x + radius) {
+                guard let pixel = pixel(x: xx, y: yy) else { continue }
+                if pixel.red > 190 && pixel.green >= 120 && pixel.green <= 210 && pixel.blue < 130 {
+                    return true
+                }
+            }
+        }
+        return false
     }
 }
 

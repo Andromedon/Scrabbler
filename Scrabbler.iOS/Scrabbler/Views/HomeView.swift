@@ -52,6 +52,16 @@ struct HomeView: View {
             }
 
             Spacer()
+
+            VStack(spacing: 3) {
+                Text("Build: \(BuildInfo.buildTimestamp)")
+                Text("Configuration: \(BuildInfo.configuration)")
+                Text("Provisioning expires: \(BuildInfo.provisioningExpiration)")
+            }
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.bottom, 12)
         }
         .navigationTitle("Home")
         .onChange(of: selectedPhoto) { newValue in

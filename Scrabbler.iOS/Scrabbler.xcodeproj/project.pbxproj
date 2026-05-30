@@ -13,6 +13,7 @@
 		100000000000000000000104 /* Views/BoardCorrectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000204 /* Views/BoardCorrectionView.swift */; };
 		100000000000000000000105 /* Views/RackInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000205 /* Views/RackInputView.swift */; };
 		100000000000000000000106 /* Views/ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000206 /* Views/ResultsView.swift */; };
+		100000000000000000000108 /* Services/BuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000208 /* Services/BuildInfo.swift */; };
 		100000000000000000000107 /* ScrabblerKit in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000401 /* ScrabblerKit */; };
 /* End PBXBuildFile section */
 
@@ -24,6 +25,8 @@
 		100000000000000000000204 /* Views/BoardCorrectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/BoardCorrectionView.swift; sourceTree = "<group>"; };
 		100000000000000000000205 /* Views/RackInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/RackInputView.swift; sourceTree = "<group>"; };
 		100000000000000000000206 /* Views/ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ResultsView.swift; sourceTree = "<group>"; };
+		100000000000000000000208 /* Services/BuildInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/BuildInfo.swift; sourceTree = "<group>"; };
+		100000000000000000000209 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -50,7 +53,9 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000201 /* ScrabblerApp.swift */,
+				100000000000000000000209 /* Info.plist */,
 				100000000000000000000202 /* Services/AppState.swift */,
+				100000000000000000000208 /* Services/BuildInfo.swift */,
 				100000000000000000000203 /* Views/HomeView.swift */,
 				100000000000000000000204 /* Views/BoardCorrectionView.swift */,
 				100000000000000000000205 /* Views/RackInputView.swift */,
@@ -149,6 +154,7 @@
 				100000000000000000000104 /* Views/BoardCorrectionView.swift in Sources */,
 				100000000000000000000105 /* Views/RackInputView.swift in Sources */,
 				100000000000000000000106 /* Views/ResultsView.swift in Sources */,
+				100000000000000000000108 /* Services/BuildInfo.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -276,10 +282,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = GXMM9BDX9Z;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Scrabbler/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Scrabbler;
 				INFOPLIST_KEY_LSRequiresIPhoneOS = YES;
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Scrabbler imports board screenshots from your photo library.";
+				INFOPLIST_KEY_ScrabblerBuildTimestamp = "$(SCRABBLER_BUILD_TIMESTAMP)";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -288,6 +296,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.andromedon.scrabbler;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SCRABBLER_BUILD_TIMESTAMP = unknown;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -302,10 +311,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = GXMM9BDX9Z;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Scrabbler/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Scrabbler;
 				INFOPLIST_KEY_LSRequiresIPhoneOS = YES;
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Scrabbler imports board screenshots from your photo library.";
+				INFOPLIST_KEY_ScrabblerBuildTimestamp = "$(SCRABBLER_BUILD_TIMESTAMP)";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -314,6 +325,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.andromedon.scrabbler;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SCRABBLER_BUILD_TIMESTAMP = unknown;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

@@ -124,6 +124,7 @@ PROJECT="Scrabbler.iOS/Scrabbler.xcodeproj"
 SCHEME="Scrabbler"
 DERIVED_DATA_PATH="$(pwd)/Scrabbler.iOS/build/DerivedData"
 APP_PATH="${DERIVED_DATA_PATH}/Build/Products/${CONFIGURATION}-iphoneos/Scrabbler.app"
+BUILD_TIMESTAMP_UTC="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
 if [[ "$USE_CACHED_PROVISIONING" != true ]]; then
   renew_local_provisioning_profiles "$BUNDLE_ID"
@@ -142,6 +143,7 @@ BUILD_ARGS=(
   -allowProvisioningUpdates
   -allowProvisioningDeviceRegistration
   CODE_SIGN_STYLE=Automatic
+  SCRABBLER_BUILD_TIMESTAMP="$BUILD_TIMESTAMP_UTC"
   build
 )
 

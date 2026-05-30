@@ -246,6 +246,49 @@ struct DictionaryBoardRepairerTests {
         #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("TEGO"))
     }
 
+    @Test func repairsDependentWordsAcrossIterations() {
+        let board = emptyBoard()
+            .setCell(row: 3, column: 11, letter: "E")
+            .setCell(row: 4, column: 9, letter: "D")
+            .setCell(row: 4, column: 10, letter: "L")
+            .setCell(row: 4, column: 11, letter: "A")
+            .setCell(row: 4, column: 12, letter: "N")
+            .setCell(row: 5, column: 4, letter: "N")
+            .setCell(row: 5, column: 8, letter: "T")
+            .setCell(row: 5, column: 10, letter: "E")
+            .setCell(row: 5, column: 11, letter: "O")
+            .setCell(row: 6, column: 1, letter: "T")
+            .setCell(row: 6, column: 2, letter: "U")
+            .setCell(row: 6, column: 3, letter: "R")
+            .setCell(row: 6, column: 4, letter: "A")
+            .setCell(row: 6, column: 9, letter: "K")
+            .setCell(row: 7, column: 4, letter: "G")
+            .setCell(row: 7, column: 7, letter: "B")
+            .setCell(row: 7, column: 9, letter: "L")
+            .setCell(row: 7, column: 11, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 5, column: 9, letter: nil, confidence: 0),
+            cell(row: 5, column: 10, letter: "E", confidence: 0.30, candidates: [
+                LetterCandidate(letter: "E", distance: 0.70)
+            ]),
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0),
+            cell(row: 7, column: 9, letter: "L", confidence: 0.30, candidates: [
+                LetterCandidate(letter: "L", distance: 0.70)
+            ]),
+            CellRead(row: 7, column: 10, letter: nil, confidence: 0)
+        ])
+
+        let repaired = repairer(words: "TEGO", "DEKA", "LG", "BLATY", "KA", "DLAŃ", "TURA").repair(result)
+
+        #expect(repaired.board[5, 9].letter == "E")
+        #expect(repaired.board[5, 10].letter == "G")
+        #expect(repaired.board[7, 8].letter == "L")
+        #expect(repaired.board[7, 9].letter == "A")
+        #expect(repaired.board[7, 10].letter == "T")
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("TEGO"))
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("BLATY"))
+    }
+
     private func emptyBoard() -> Board {
         Board(bonuses: Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size))
     }

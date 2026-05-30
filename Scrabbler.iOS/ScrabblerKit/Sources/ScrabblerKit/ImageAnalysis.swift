@@ -146,12 +146,16 @@ public struct NativeBoardImageReader: BoardImageReading {
                 if let existing = readsByCell[key] {
                     readsByCell[key] = merge(existing: existing, glyph: glyphRead)
                 } else {
-                    readsByCell[key] = glyphRead ?? CellRead(
-                        row: row,
-                        column: column,
-                        letter: nil,
-                        confidence: 0
-                    )
+                    readsByCell[key] = glyphRead.map { glyph in
+                        CellRead(
+                            row: row,
+                            column: column,
+                            letter: nil,
+                            confidence: 0,
+                            candidates: glyph.candidates,
+                            detectedScoreDigit: glyph.detectedScoreDigit
+                        )
+                    } ?? CellRead(row: row, column: column, letter: nil, confidence: 0)
                 }
             }
         }
@@ -180,7 +184,7 @@ public struct NativeBoardImageReader: BoardImageReading {
 
         let selectedLetter: Character?
         let selectedConfidence: Double
-        if glyph.letter != nil && (existing.letter == nil || glyph.confidence > existing.confidence + 0.15) {
+        if shouldPreferGlyph(existing: existing, glyph: glyph) {
             selectedLetter = glyph.letter
             selectedConfidence = glyph.confidence
         } else {
@@ -197,6 +201,21 @@ public struct NativeBoardImageReader: BoardImageReading {
             candidates: mergeCandidates(existing.candidates, glyph.candidates),
             detectedScoreDigit: glyph.detectedScoreDigit ?? existing.detectedScoreDigit
         )
+    }
+
+    private func shouldPreferGlyph(existing: CellRead, glyph: CellRead) -> Bool {
+        guard let glyphLetter = glyph.letter else { return false }
+        guard let existingLetter = existing.letter else { return true }
+        guard let scoreDigit = glyph.detectedScoreDigit else { return false }
+        let glyphMatchesScore = glyph.candidates.contains {
+            $0.letter == glyphLetter && $0.matchedScoreDigit == scoreDigit
+        }
+        let existingMatchesScore = glyph.candidates.contains { $0.letter == existingLetter && $0.matchedScoreDigit == scoreDigit }
+
+        return glyphMatchesScore &&
+            !existingMatchesScore &&
+            glyph.confidence >= 0.82 &&
+            glyph.confidence >= existing.confidence
     }
 
     private func mergeCandidates(_ first: [LetterCandidate], _ second: [LetterCandidate]) -> [LetterCandidate] {
@@ -914,15 +933,19 @@ private struct TileGlyphRecognizer {
 
     private let letterValues: [Character: Int]
     private let samples: [LetterSample]
+    private let digitSamples: [DigitSample]
 
     init(letterValues: [Character: Int]) throws {
         self.letterValues = letterValues
-        self.samples = try Self.loadSamples(letterValues: letterValues)
+        let library = try Self.loadSamples(letterValues: letterValues)
+        self.samples = library.samples
+        self.digitSamples = library.digitSamples
     }
 
     private init(letterValues: [Character: Int], samples: [LetterSample]) {
         self.letterValues = letterValues
         self.samples = samples
+        self.digitSamples = []
     }
 
     func recognize(row: Int, column: Int, mapper: BoardImageMapper, sampler: BoardColorSampler) -> CellRead? {
@@ -958,7 +981,11 @@ private struct TileGlyphRecognizer {
             .max() ?? 0
         let confidence = calculateConfidence(score: selected.score, secondScore: secondScore, scoreDigit: digit, letter: selected.letter)
         let publicCandidates = candidates.prefix(8).map {
-            LetterCandidate(letter: $0.letter, distance: max(0, 1 - $0.score), matchedScoreDigit: digit)
+            LetterCandidate(
+                letter: $0.letter,
+                distance: max(0, 1 - $0.score),
+                matchedScoreDigit: letterValues[$0.letter] == digit ? digit : nil
+            )
         }
 
         return CellRead(
@@ -1005,7 +1032,30 @@ private struct TileGlyphRecognizer {
             height: max(1, bounds.height * 0.32)
         )
         guard let mask = extractScoreMask(sampler: sampler, bounds: scoreBounds) else { return nil }
-        return recognizeDigitByShape(mask)
+        if let digit = recognizeDigitByShape(mask) {
+            return digit
+        }
+
+        return recognizeDigitBySample(mask)
+    }
+
+    private func recognizeDigitBySample(_ glyph: [Bool]) -> Int? {
+        var bestDigit: Int?
+        var bestScore = 0.0
+        var secondScore = 0.0
+        for sample in digitSamples {
+            let score = similarity(glyph, sample.mask)
+            if score > bestScore {
+                secondScore = bestScore
+                bestScore = score
+                bestDigit = sample.digit
+            } else if score > secondScore {
+                secondScore = score
+            }
+        }
+
+        let confidence = min(1, max(0, bestScore * 0.8 + max(0, bestScore - secondScore) * 1.1))
+        return confidence >= 0.25 ? bestDigit : nil
     }
 
     private func recognizeDigitByShape(_ glyph: [Bool]) -> Int? {
@@ -1284,38 +1334,75 @@ private struct TileGlyphRecognizer {
         values.isEmpty ? 0 : Double(values.reduce(0, +)) / Double(values.count)
     }
 
-    private static func loadSamples(letterValues: [Character: Int]) throws -> [LetterSample] {
-        guard let urls = Bundle.module.urls(forResourcesWithExtension: "png", subdirectory: "Data/letters-samples") else {
-            return []
-        }
-
-        let rawSamples = urls.compactMap { url -> (letter: Character, image: CGImage)? in
-            let name = url.deletingPathExtension().lastPathComponent.precomposedStringWithCanonicalMapping
-            guard name.count == 1,
-                  let letter = name.first,
-                  PolishAlphabet.isPolishLetter(letter),
-                  letterValues[PolishAlphabet.normalizeLetter(letter)] != nil,
+    private static func loadSamples(letterValues: [Character: Int]) throws -> LetterSampleLibrary {
+        let rawSamples = PolishAlphabet.letters.compactMap { letter -> (letter: Character, image: CGImage)? in
+            let normalized = PolishAlphabet.normalizeLetter(letter)
+            guard letterValues[normalized] != nil,
+                  let url = sampleURL(for: normalized),
                   let source = CGImageSourceCreateWithURL(url as CFURL, nil),
                   let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
                 return nil
             }
-            return (PolishAlphabet.normalizeLetter(letter), image)
+            return (normalized, image)
         }
 
         let extractor = TileGlyphRecognizer(letterValues: letterValues, samples: [])
-        return rawSamples.compactMap { sample in
+        var letterSamples: [LetterSample] = []
+        var digitSamples: [DigitSample] = []
+        for sample in rawSamples {
             let mapper = BoardImageMapper(width: sample.image.width, height: sample.image.height, boardX: 0, boardY: 0, boardSize: Double(min(sample.image.width, sample.image.height)))
             let sampler = BoardColorSampler(image: sample.image, mapper: mapper)
             let bounds = CGRect(x: 0, y: 0, width: sample.image.width, height: sample.image.height).insetBy(
                 dx: Double(sample.image.width) * 0.035,
                 dy: Double(sample.image.height) * 0.035
             )
-            guard let shapeMask = extractor.extractShapeMask(sampler: sampler, bounds: bounds),
-                  let tileMask = extractor.extractTileMask(sampler: sampler, bounds: bounds) else {
-                return nil
+            if let shapeMask = extractor.extractShapeMask(sampler: sampler, bounds: bounds),
+               let tileMask = extractor.extractTileMask(sampler: sampler, bounds: bounds) {
+                letterSamples.append(LetterSample(letter: sample.letter, shapeMask: shapeMask, tileMask: tileMask))
             }
-            return LetterSample(letter: sample.letter, shapeMask: shapeMask, tileMask: tileMask)
-        }.sorted { String($0.letter) < String($1.letter) }
+
+            let scoreBounds = extractor.scoreBounds(for: bounds)
+            if let score = letterValues[sample.letter],
+               let digitMask = extractor.extractScoreMask(sampler: sampler, bounds: scoreBounds) {
+                digitSamples.append(DigitSample(digit: score, mask: digitMask))
+            }
+        }
+
+        if ProcessInfo.processInfo.environment["SCRABBLER_OCR_DEBUG"] == "1" {
+            print("OCR DEBUG loaded letter samples: \(letterSamples.count), digit samples: \(digitSamples.count)")
+        }
+
+        return LetterSampleLibrary(
+            samples: letterSamples.sorted { String($0.letter) < String($1.letter) },
+            digitSamples: digitSamples
+        )
+    }
+
+    private func scoreBounds(for bounds: CGRect) -> CGRect {
+        CGRect(
+            x: bounds.minX + bounds.width * 0.55,
+            y: bounds.minY,
+            width: max(1, bounds.width * 0.40),
+            height: max(1, bounds.height * 0.32)
+        )
+    }
+
+    private static func sampleURL(for letter: Character) -> URL? {
+        let names = [
+            String(letter),
+            String(letter).precomposedStringWithCanonicalMapping,
+            String(letter).decomposedStringWithCanonicalMapping
+        ]
+
+        for name in names {
+            if let url = Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "Resources/Data/letters-samples") ??
+                Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "Data/letters-samples") ??
+                Bundle.module.url(forResource: name, withExtension: "png") {
+                return url
+            }
+        }
+
+        return nil
     }
 }
 
@@ -1323,6 +1410,16 @@ private struct LetterSample {
     let letter: Character
     let shapeMask: [Bool]
     let tileMask: [Bool]
+}
+
+private struct DigitSample {
+    let digit: Int
+    let mask: [Bool]
+}
+
+private struct LetterSampleLibrary {
+    let samples: [LetterSample]
+    let digitSamples: [DigitSample]
 }
 
 private struct PixelMask {

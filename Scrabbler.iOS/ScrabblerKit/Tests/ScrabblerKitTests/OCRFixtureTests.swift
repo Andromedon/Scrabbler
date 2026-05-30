@@ -73,6 +73,7 @@ struct OCRFixtureTests {
     )
     private func readsRepresentativeRealBoardWords(expectation: FixtureExpectation) async throws {
         let result = try await readFixture(expectation.fileName)
+        dumpOCRIfRequested(fileName: expectation.fileName, result: result)
         let occupied = result.cells
         let words = Set(boardLines(result.board))
 
@@ -94,6 +95,7 @@ struct OCRFixtureTests {
     )
     private func documentsRemainingOCRParityGaps(expectation: FixtureExpectation) async throws {
         let result = try await readFixture(expectation.fileName)
+        dumpOCRIfRequested(fileName: expectation.fileName, result: result)
         let words = Set(boardLines(result.board))
 
         for gapWord in expectation.parityGapWords {
@@ -194,5 +196,33 @@ struct OCRFixtureTests {
         }
 
         throw ScrabblerError.dictionaryNotFound(fileName)
+    }
+
+    private func dumpOCRIfRequested(fileName: String, result: BoardReadResult) {
+        guard ProcessInfo.processInfo.environment["SCRABBLER_OCR_DEBUG"] == "1" else {
+            return
+        }
+
+        print("OCR DEBUG \(fileName)")
+        for row in 0..<Board.size {
+            let line = String((0..<Board.size).map { column in
+                result.board[row, column].letter ?? "."
+            })
+            print(String(format: "%02d %@", row + 1, line))
+        }
+
+        print("WORDS \(boardLines(result.board).sorted().joined(separator: ", "))")
+        for cell in result.cells.sorted(by: { lhs, rhs in
+            if lhs.row != rhs.row { return lhs.row < rhs.row }
+            return lhs.column < rhs.column
+        }) {
+            let coordinate = "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(cell.column))))\(cell.row + 1)"
+            let letter = cell.letter.map(String.init) ?? "."
+            let digit = cell.detectedScoreDigit.map(String.init) ?? "."
+            let candidates = cell.candidates.prefix(5)
+                .map { "\($0.letter):\(String(format: "%.2f", 1 - $0.distance))\($0.matchedScoreDigit == nil ? "" : "*")" }
+                .joined(separator: " ")
+            print("\(coordinate)=\(letter) conf=\(String(format: "%.2f", cell.confidence)) digit=\(digit) \(candidates)")
+        }
     }
 }

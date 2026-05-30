@@ -10,6 +10,7 @@ struct BoardCorrectionView: View {
             BoardGridView(
                 board: state.board,
                 highlightedCells: state.autoRepairedCellKeys,
+                warningCells: state.reviewCellKeys,
                 onTapCell: { row, column in
                     state.appendCorrection(row: row, column: column)
                     correctionsFocused = true
@@ -23,6 +24,12 @@ struct BoardCorrectionView: View {
                     Text("Auto-corrected: \(state.autoRepairStatus)")
                         .font(.footnote)
                         .foregroundStyle(.green)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !state.reviewStatus.isEmpty {
+                    Text(state.reviewStatus)
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if !state.boardValidationStatus.isEmpty {
@@ -71,15 +78,18 @@ struct BoardCorrectionView: View {
 struct BoardGridView: View {
     let board: ScrabblerKit.Board
     let highlightedCells: Set<String>
+    let warningCells: Set<String>
     let onTapCell: (Int, Int) -> Void
 
     init(
         board: ScrabblerKit.Board,
         highlightedCells: Set<String> = [],
+        warningCells: Set<String> = [],
         onTapCell: @escaping (Int, Int) -> Void
     ) {
         self.board = board
         self.highlightedCells = highlightedCells
+        self.warningCells = warningCells
         self.onTapCell = onTapCell
     }
 
@@ -108,11 +118,13 @@ struct BoardGridView: View {
                             Button {
                                 onTapCell(row, column)
                             } label: {
-                                let isHighlighted = highlightedCells.contains(Self.key(row: row, column: column))
+                                let key = Self.key(row: row, column: column)
+                                let isHighlighted = highlightedCells.contains(key)
+                                let needsReview = warningCells.contains(key)
                                 ZStack {
                                     Rectangle()
-                                        .fill(fillColor(row: row, column: column, highlighted: isHighlighted))
-                                        .border(isHighlighted ? Color.accentColor : Color.white, width: isHighlighted ? 2 : 1)
+                                        .fill(fillColor(row: row, column: column, highlighted: isHighlighted, needsReview: needsReview))
+                                        .border(borderColor(highlighted: isHighlighted, needsReview: needsReview), width: isHighlighted || needsReview ? 2 : 1)
                                     Text(board[row, column].letter.map(String.init) ?? "")
                                         .font(.system(size: max(10, cellSize * 0.48), weight: .bold))
                                         .foregroundStyle(.primary)
@@ -131,11 +143,24 @@ struct BoardGridView: View {
         .padding(.horizontal, 8)
     }
 
-    private func fillColor(row: Int, column: Int, highlighted: Bool) -> Color {
+    private func fillColor(row: Int, column: Int, highlighted: Bool, needsReview: Bool) -> Color {
         if highlighted {
             return Color.green.opacity(0.75)
         }
+        if needsReview {
+            return Color.orange.opacity(board[row, column].letter == nil ? 0.35 : 0.65)
+        }
         return board[row, column].letter == nil ? Color(.secondarySystemBackground) : Color.orange.opacity(0.85)
+    }
+
+    private func borderColor(highlighted: Bool, needsReview: Bool) -> Color {
+        if highlighted {
+            return Color.green
+        }
+        if needsReview {
+            return Color.yellow
+        }
+        return Color.white
     }
 
     static func key(row: Int, column: Int) -> String {

@@ -22,6 +22,8 @@ final class AppState: ObservableObject {
     @Published var boardValidationStatus = ""
     @Published var autoRepairStatus = ""
     @Published var autoRepairedCellKeys: Set<String> = []
+    @Published var reviewCellKeys: Set<String> = []
+    @Published var reviewStatus = ""
     @Published var isBusy = false
     @Published var status = ""
     @Published var lastSolveTiming = ""
@@ -79,6 +81,7 @@ final class AppState: ObservableObject {
             board = result.board
             lastCellReads = result.cells
             correctionsText = ""
+            refreshReviewCells()
             applyDictionaryRepairsIfPossible()
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
             refreshBoardValidation()
@@ -90,6 +93,8 @@ final class AppState: ObservableObject {
             detectedTileCount = 0
             autoRepairStatus = ""
             autoRepairedCellKeys = []
+            reviewCellKeys = []
+            reviewStatus = ""
             boardValidationStatus = "Board could not be read automatically."
             screen = .boardCorrection
             errorMessage = error.localizedDescription
@@ -103,6 +108,8 @@ final class AppState: ObservableObject {
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
             autoRepairStatus = ""
             autoRepairedCellKeys = []
+            reviewCellKeys = []
+            reviewStatus = ""
             refreshBoardValidation()
         } catch {
             errorMessage = error.localizedDescription
@@ -174,6 +181,8 @@ final class AppState: ObservableObject {
         detectedTileCount = 0
         autoRepairStatus = ""
         autoRepairedCellKeys = []
+        reviewCellKeys = []
+        reviewStatus = ""
         boardValidationStatus = ""
         lastCellReads = []
         screen = .home
@@ -321,6 +330,59 @@ final class AppState: ObservableObject {
                 return "\(coordinate(repair.row, repair.column)) \(from)→\(to)"
             }
             .joined(separator: ", ")
+        refreshReviewCells()
+    }
+
+    private func refreshReviewCells() {
+        let repairedKeys = autoRepairedCellKeys
+        let cellsToReview = lastCellReads
+            .filter { cell in
+                let key = Self.cellKey(row: cell.row, column: cell.column)
+                guard !repairedKeys.contains(key) else { return false }
+
+                if cell.letter == nil {
+                    return !cell.candidates.isEmpty
+                }
+
+                if cell.confidence < 0.58 {
+                    return true
+                }
+
+                guard cell.candidates.count >= 2 else {
+                    return false
+                }
+
+                let top = 1 - cell.candidates[0].distance
+                let second = 1 - cell.candidates[1].distance
+                return top - second < 0.06 && cell.confidence < 0.82
+            }
+            .sorted {
+                if $0.row != $1.row { return $0.row < $1.row }
+                return $0.column < $1.column
+            }
+
+        reviewCellKeys = Set(cellsToReview.map { Self.cellKey(row: $0.row, column: $0.column) })
+        guard !cellsToReview.isEmpty else {
+            reviewStatus = ""
+            return
+        }
+
+        let preview = cellsToReview
+            .prefix(10)
+            .map { cell -> String in
+                let letter = cell.letter.map(String.init) ?? "."
+                let candidates = cell.candidates
+                    .prefix(3)
+                    .map { String($0.letter) }
+                    .joined(separator: "/")
+                if candidates.isEmpty {
+                    return "\(coordinate(cell.row, cell.column))=\(letter)"
+                }
+                return "\(coordinate(cell.row, cell.column))=\(letter) (\(candidates))"
+            }
+            .joined(separator: ", ")
+        let suffix = cellsToReview.count > 10 ? "…" : ""
+        reviewStatus = "Check amber cells: \(preview)\(suffix)"
     }
 
     private func refreshBoardValidation() {

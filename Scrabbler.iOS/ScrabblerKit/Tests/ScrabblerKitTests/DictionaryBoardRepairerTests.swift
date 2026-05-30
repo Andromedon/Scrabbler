@@ -150,6 +150,79 @@ struct DictionaryBoardRepairerTests {
         #expect(repaired.appliedRepairs.contains { $0.row == 1 && $0.column == 5 && $0.originalLetter == "W" && $0.repairedLetter == nil })
     }
 
+    @Test func fillsTwoVisualGapsWhenDictionaryPatternIsUnique() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 7, letter: "B")
+            .setCell(row: 7, column: 9, letter: "A")
+            .setCell(row: 7, column: 11, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0),
+            CellRead(row: 7, column: 10, letter: nil, confidence: 0)
+        ])
+
+        let repaired = repairer(words: "BLATY").repair(result)
+
+        #expect(repaired.board[7, 8].letter == "L")
+        #expect(repaired.board[7, 10].letter == "T")
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("BLATY"))
+    }
+
+    @Test func fillsTwoVisualGapsAndOneLowConfidenceMismatchWhenUnique() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 7, letter: "B")
+            .setCell(row: 7, column: 9, letter: "L")
+            .setCell(row: 7, column: 11, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0),
+            cell(row: 7, column: 9, letter: "L", confidence: 0.30, candidates: [
+                LetterCandidate(letter: "L", distance: 0.70)
+            ]),
+            CellRead(row: 7, column: 10, letter: nil, confidence: 0)
+        ])
+
+        let repaired = repairer(words: "BLATY").repair(result)
+
+        #expect(repaired.board[7, 8].letter == "L")
+        #expect(repaired.board[7, 9].letter == "A")
+        #expect(repaired.board[7, 10].letter == "T")
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("BLATY"))
+    }
+
+    @Test func refusesAmbiguousTwoGapPattern() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 7, letter: "B")
+            .setCell(row: 7, column: 9, letter: "A")
+            .setCell(row: 7, column: 11, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0),
+            CellRead(row: 7, column: 10, letter: nil, confidence: 0)
+        ])
+
+        let repaired = repairer(words: "BLATY", "BRANY").repair(result)
+
+        #expect(repaired.board[7, 8].letter == nil)
+        #expect(repaired.board[7, 10].letter == nil)
+        #expect(repaired.appliedRepairs.isEmpty)
+    }
+
+    @Test func refusesTwoGapPatternWhenItBreaksCrossWord() {
+        let board = emptyBoard()
+            .setCell(row: 6, column: 8, letter: "O")
+            .setCell(row: 7, column: 7, letter: "B")
+            .setCell(row: 7, column: 9, letter: "A")
+            .setCell(row: 7, column: 11, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0),
+            CellRead(row: 7, column: 10, letter: nil, confidence: 0)
+        ])
+
+        let repaired = repairer(words: "BLATY").repair(result)
+
+        #expect(repaired.board[7, 8].letter == nil)
+        #expect(repaired.board[7, 10].letter == nil)
+        #expect(repaired.appliedRepairs.isEmpty)
+    }
+
     private func emptyBoard() -> Board {
         Board(bonuses: Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size))
     }

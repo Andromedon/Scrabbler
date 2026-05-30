@@ -145,6 +145,7 @@ struct OCRFixtureTests {
     @Test(
         "repairs dictionary-backed parity gaps",
         arguments: [
+            ("board-real-7273.jpg", "STYPA"),
             ("board-real-7295.jpg", "ANIMĄ"),
             ("board-real-7295.jpg", "SROCZYMI"),
             ("board-real-7330.jpg", "DLAŃ"),

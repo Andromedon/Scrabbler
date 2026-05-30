@@ -431,9 +431,9 @@ public struct DictionaryBoardRepairer: Sendable {
 
         let missingIndices = cells.indices.filter { cells[$0].letter == nil }
         let knownCount = cells.count - missingIndices.count
-        guard (1...2).contains(missingIndices.count),
-              knownCount >= 2,
-              missingIndices.allSatisfy({ $0 > 0 && $0 < cells.count - 1 }),
+        guard (1...4).contains(missingIndices.count),
+              knownCount >= (missingIndices.count <= 2 ? 2 : 1),
+              (missingIndices.count > 2 || missingIndices.allSatisfy({ $0 > 0 && $0 < cells.count - 1 })),
               let words = dictionary.wordsByLength[cells.count] else {
             return []
         }
@@ -479,10 +479,15 @@ public struct DictionaryBoardRepairer: Sendable {
         guard mismatchIndices.count <= 1 else {
             return nil
         }
+        if missingIndices.count > 2 && !mismatchIndices.isEmpty {
+            return nil
+        }
 
         var repairedBoard = board
         var repairs: [BoardRepair] = []
         var score = Double(word.count) - Double(missingIndices.count) * 0.12
+        var strongMissingEvidenceCount = 0
+        var scoreDigitMatchCount = 0
         for index in missingIndices {
             let cell = cells[index]
             guard let read = cellsByKey[Self.key(row: cell.row, column: cell.column)],
@@ -491,6 +496,18 @@ public struct DictionaryBoardRepairer: Sendable {
             }
 
             let expected = expectedLetters[index]
+            if missingIndices.count > 2 {
+                guard let candidate = read.candidates.first(where: { $0.letter == expected }),
+                      1 - candidate.distance >= 0.80 else {
+                    return nil
+                }
+
+                strongMissingEvidenceCount += 1
+                if let digit = read.detectedScoreDigit, letterValues[expected] == digit {
+                    scoreDigitMatchCount += 1
+                }
+            }
+
             repairedBoard = repairedBoard.setCell(row: cell.row, column: cell.column, letter: expected)
             repairs.append(BoardRepair(
                 row: cell.row,
@@ -505,6 +522,12 @@ public struct DictionaryBoardRepairer: Sendable {
             }
             if let digit = read.detectedScoreDigit, letterValues[expected] == digit {
                 score += 0.20
+            }
+        }
+        if missingIndices.count > 2 {
+            guard strongMissingEvidenceCount == missingIndices.count,
+                  scoreDigitMatchCount > 0 else {
+                return nil
             }
         }
 

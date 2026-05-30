@@ -205,6 +205,54 @@ struct DictionaryBoardRepairerTests {
         #expect(repaired.appliedRepairs.isEmpty)
     }
 
+    @Test func fillsFourVisualGapsWhenEveryGapHasStrongOCRCandidate() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 10, letter: "P")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 7, column: 7, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "S", distance: 0.09)
+            ], detectedScoreDigit: 1),
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "T", distance: 0.08)
+            ], detectedScoreDigit: 2),
+            CellRead(row: 7, column: 9, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "Y", distance: 0.08)
+            ], detectedScoreDigit: 2),
+            CellRead(row: 7, column: 11, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "A", distance: 0.06)
+            ], detectedScoreDigit: 1)
+        ])
+
+        let repaired = repairer(words: "STYPA").repair(result)
+
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("STYPA"))
+        #expect(repaired.appliedRepairs.count == 4)
+    }
+
+    @Test func refusesLargeVisualGapWhenOCRCandidateEvidenceIsWeak() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 10, letter: "P")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 7, column: 7, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "S", distance: 0.09)
+            ], detectedScoreDigit: 1),
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "T", distance: 0.30)
+            ], detectedScoreDigit: 2),
+            CellRead(row: 7, column: 9, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "Y", distance: 0.08)
+            ], detectedScoreDigit: 2),
+            CellRead(row: 7, column: 11, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "A", distance: 0.06)
+            ], detectedScoreDigit: 1)
+        ])
+
+        let repaired = repairer(words: "STYPA").repair(result)
+
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("STYPA") == false)
+        #expect(repaired.appliedRepairs.isEmpty)
+    }
+
     @Test func refusesTwoGapPatternWhenItBreaksCrossWord() {
         let board = emptyBoard()
             .setCell(row: 6, column: 8, letter: "O")
@@ -322,7 +370,10 @@ struct DictionaryBoardRepairerTests {
                 "H": 3,
                 "N": 1,
                 "O": 1,
-                "T": 2
+                "P": 2,
+                "S": 1,
+                "T": 2,
+                "Y": 2
             ]
         )
     }

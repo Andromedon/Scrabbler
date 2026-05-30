@@ -234,6 +234,7 @@ final class AppState: ObservableObject {
                 isDictionaryCacheAvailable = hasCache
                 if hasCache, solver == nil {
                     dictionaryStatus = "Dictionary cache available"
+                    warmDictionaryForBoardReviewIfAvailable()
                 }
             } catch {
                 isDictionaryCacheAvailable = false

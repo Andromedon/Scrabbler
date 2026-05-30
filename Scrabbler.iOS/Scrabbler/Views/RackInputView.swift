@@ -48,6 +48,15 @@ struct RackInputView: View {
         }
         .padding(.top, 40)
         .navigationTitle("Rack")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    state.screen = .boardCorrection
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+            }
+        }
         .onAppear { rackFocused = true }
     }
 }

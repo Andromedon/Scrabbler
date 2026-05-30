@@ -56,6 +56,15 @@ struct BoardCorrectionView: View {
             .controlSize(.large)
         }
         .navigationTitle("Correct board")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    state.screen = .home
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+            }
+        }
     }
 }
 

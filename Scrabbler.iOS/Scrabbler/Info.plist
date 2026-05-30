@@ -27,7 +27,10 @@
 	<key>ScrabblerBuildTimestamp</key>
 	<string>$(SCRABBLER_BUILD_TIMESTAMP)</string>
 	<key>UILaunchScreen</key>
-	<dict/>
+	<dict>
+		<key>UIImageName</key>
+		<string>LaunchLogo</string>
+	</dict>
 	<key>UIRequiresFullScreen</key>
 	<true/>
 	<key>UISupportedInterfaceOrientations</key>

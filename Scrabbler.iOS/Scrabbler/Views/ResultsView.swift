@@ -50,6 +50,15 @@ struct ResultsView: View {
             .padding(.bottom)
         }
         .navigationTitle("Results")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    state.screen = .rackInput
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+            }
+        }
     }
 
     private func coordinate(_ row: Int, _ column: Int) -> String {

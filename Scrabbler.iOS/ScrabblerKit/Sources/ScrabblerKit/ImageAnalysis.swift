@@ -82,6 +82,8 @@ public enum BoardImageReaderError: LocalizedError {
 }
 
 public struct NativeBoardImageReader: BoardImageReading {
+    private static let defaultGlyphRecognizer = try? TileGlyphRecognizer(letterValues: BundledDataLoader.loadLetterValues())
+
     public init() {}
 
     public func readBoard(from imageURL: URL, bonuses: [[BonusType]]) async throws -> BoardReadResult {
@@ -93,7 +95,7 @@ public struct NativeBoardImageReader: BoardImageReading {
         let observations = try recognizeText(in: imageURL)
         let mapper = BoardImageMapper(width: image.width, height: image.height)
         let sampler = BoardColorSampler(image: image, mapper: mapper)
-        let glyphRecognizer = try? TileGlyphRecognizer(letterValues: BundledDataLoader.loadLetterValues())
+        let glyphRecognizer = Self.defaultGlyphRecognizer
 
         var readsByCell: [String: CellRead] = [:]
         for observation in observations {

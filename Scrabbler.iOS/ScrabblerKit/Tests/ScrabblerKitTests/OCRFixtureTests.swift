@@ -2,8 +2,27 @@ import Foundation
 import Testing
 @testable import ScrabblerKit
 
-@Suite("OCR fixtures")
+@Suite("OCR fixtures", .serialized)
 struct OCRFixtureTests {
+    private struct FixtureExpectation {
+        let fileName: String
+        let minimumOccupiedCells: Int
+        let expectedWords: [String]
+        let parityGapWords: [String]
+
+        init(
+            fileName: String,
+            minimumOccupiedCells: Int,
+            expectedWords: [String],
+            parityGapWords: [String] = []
+        ) {
+            self.fileName = fileName
+            self.minimumOccupiedCells = minimumOccupiedCells
+            self.expectedWords = expectedWords
+            self.parityGapWords = parityGapWords
+        }
+    }
+
     @Test func bundledRegressionFixturesAreAvailable() throws {
         let expected = [
             "all-letters-sample.png",
@@ -40,6 +59,46 @@ struct OCRFixtureTests {
 
         #expect(occupied.count >= 20)
         #expect(BoardWordExtractor.extractWords(from: result.board).isEmpty == false)
+    }
+
+    @Test(
+        "reads representative real board words",
+        arguments: [
+            FixtureExpectation(fileName: "board-real-7273.jpg", minimumOccupiedCells: 70, expectedWords: ["PAT", "URODNY", "RADA"], parityGapWords: ["STYPA"]),
+            FixtureExpectation(fileName: "board-real-7295.jpg", minimumOccupiedCells: 55, expectedWords: ["GODY", "DONGA", "PANIE"], parityGapWords: ["ANIMĄ", "SROCZYMI"]),
+            FixtureExpectation(fileName: "board-real-7330.jpg", minimumOccupiedCells: 50, expectedWords: ["TURA"], parityGapWords: ["DLAŃ", "TEGO", "BLATY", "SERIA"]),
+            FixtureExpectation(fileName: "board-real-7331.jpg", minimumOccupiedCells: 60, expectedWords: ["ACHOLIA"], parityGapWords: ["REJ", "SZKOLONY"]),
+            FixtureExpectation(fileName: "board-real-7367.jpg", minimumOccupiedCells: 30, expectedWords: ["CERO", "DOZA"], parityGapWords: ["STAZIE", "DMIJ"])
+        ]
+    )
+    private func readsRepresentativeRealBoardWords(expectation: FixtureExpectation) async throws {
+        let result = try await readFixture(expectation.fileName)
+        let occupied = result.cells
+        let words = Set(boardLines(result.board))
+
+        #expect(occupied.count >= expectation.minimumOccupiedCells)
+        for expectedWord in expectation.expectedWords {
+            #expect(words.contains(expectedWord), "\(expectation.fileName) missing \(expectedWord); recognized words: \(words.sorted())")
+        }
+    }
+
+    @Test(
+        "documents remaining OCR parity gaps",
+        arguments: [
+            FixtureExpectation(fileName: "board-real-7273.jpg", minimumOccupiedCells: 70, expectedWords: [], parityGapWords: ["STYPA"]),
+            FixtureExpectation(fileName: "board-real-7295.jpg", minimumOccupiedCells: 55, expectedWords: [], parityGapWords: ["ANIMĄ", "SROCZYMI"]),
+            FixtureExpectation(fileName: "board-real-7330.jpg", minimumOccupiedCells: 50, expectedWords: [], parityGapWords: ["DLAŃ", "TEGO", "BLATY", "SERIA"]),
+            FixtureExpectation(fileName: "board-real-7331.jpg", minimumOccupiedCells: 60, expectedWords: [], parityGapWords: ["REJ", "SZKOLONY"]),
+            FixtureExpectation(fileName: "board-real-7367.jpg", minimumOccupiedCells: 30, expectedWords: [], parityGapWords: ["STAZIE", "DMIJ"])
+        ]
+    )
+    private func documentsRemainingOCRParityGaps(expectation: FixtureExpectation) async throws {
+        let result = try await readFixture(expectation.fileName)
+        let words = Set(boardLines(result.board))
+
+        for gapWord in expectation.parityGapWords {
+            #expect(!words.contains(gapWord), "\(expectation.fileName) now recognizes \(gapWord); move it to the passing fixture expectations.")
+        }
     }
 
     @Test func repairsSingleMissedTileGapInRealBoard7367() async throws {

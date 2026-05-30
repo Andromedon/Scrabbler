@@ -20,25 +20,40 @@ struct ResultsView: View {
                     .padding(.horizontal)
             }
 
-            List(state.results, id: \.stableID) { move in
-                Button {
-                    state.selectedMove = move
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("\(move.score)")
-                                .font(.headline.monospacedDigit())
-                            Text(move.word)
-                                .font(.headline)
-                            Spacer()
-                            Text("\(coordinate(move.row, move.column)) \(move.direction == .horizontal ? "→" : "↓")")
+            if state.results.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text("No moves found")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(state.results, id: \.stableID) { move in
+                    Button {
+                        state.selectedMove = move
+                    } label: {
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack {
+                                Text("\(move.score)")
+                                    .font(.headline.monospacedDigit())
+                                    .frame(minWidth: 38, alignment: .leading)
+                                Text(move.word)
+                                    .font(.headline)
+                                Spacer()
+                                Text("\(coordinate(move.row, move.column)) \(move.direction == .horizontal ? "→" : "↓")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text("Placed: \(move.placedTiles.map { "\($0.letter)\(coordinate($0.row, $0.column))" }.joined(separator: ", "))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Text("Placed: \(move.placedTiles.map { "\($0.letter)\(coordinate($0.row, $0.column))" }.joined(separator: ", "))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
+                    .buttonStyle(.plain)
+                    .listRowBackground(state.selectedMove?.stableID == move.stableID ? Color.accentColor.opacity(0.14) : Color.clear)
                 }
             }
 

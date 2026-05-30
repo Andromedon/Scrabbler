@@ -17,6 +17,26 @@ struct RackInputView: View {
                 .font(.title3)
                 .padding(.horizontal)
 
+            HStack {
+                Button("Clear") {
+                    state.rackText = ""
+                    rackFocused = true
+                }
+                .buttonStyle(.bordered)
+                .disabled(state.rackText.isEmpty)
+
+                if state.isDictionaryReady {
+                    Label("Dictionary ready", systemImage: "checkmark.circle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.green)
+                } else if state.isDictionaryCacheAvailable {
+                    Label("Dictionary cached", systemImage: "internaldrive.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal)
+
             Button {
                 state.solve()
             } label: {
@@ -54,6 +74,12 @@ struct RackInputView: View {
                     state.screen = .boardCorrection
                 } label: {
                     Label("Back", systemImage: "chevron.left")
+                }
+            }
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    rackFocused = false
                 }
             }
         }

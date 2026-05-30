@@ -6,61 +6,52 @@ struct BoardCorrectionView: View {
     @FocusState private var correctionsFocused: Bool
 
     var body: some View {
-        VStack(spacing: 12) {
-            BoardGridView(
-                board: state.board,
-                highlightedCells: state.autoRepairedCellKeys,
-                warningCells: state.reviewCellKeys,
-                onTapCell: { row, column in
-                    state.appendCorrection(row: row, column: column)
-                    correctionsFocused = true
-                }
-            )
+        ScrollView {
+            VStack(spacing: 14) {
+                BoardGridView(
+                    board: state.board,
+                    highlightedCells: state.autoRepairedCellKeys,
+                    warningCells: state.reviewCellKeys,
+                    onTapCell: { row, column in
+                        state.appendCorrection(row: row, column: column)
+                        correctionsFocused = true
+                    }
+                )
+                .frame(maxHeight: 520)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Detected tiles: \(state.detectedTileCount)")
-                    .font(.footnote.weight(.semibold))
-                if !state.autoRepairStatus.isEmpty {
-                    Text("Auto-corrected: \(state.autoRepairStatus)")
-                        .font(.footnote)
-                        .foregroundStyle(.green)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if !state.reviewStatus.isEmpty {
-                    Text(state.reviewStatus)
-                        .font(.footnote)
-                        .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if !state.boardValidationStatus.isEmpty {
-                    Text(state.boardValidationStatus)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal)
+                boardStatus
 
-            TextField("A1=Ł, H8=?, J10=.", text: $state.correctionsText, axis: .vertical)
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled()
-                .focused($correctionsFocused)
-                .textFieldStyle(.roundedBorder)
+                VStack(spacing: 10) {
+                    TextField("A1=Ł, H8=?, J10=.", text: $state.correctionsText, axis: .vertical)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .focused($correctionsFocused)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(1...3)
+
+                    HStack {
+                        Button("Apply") {
+                            state.applyCorrections()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(state.correctionsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button("Clear") {
+                            state.correctionsText = ""
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(state.correctionsText.isEmpty)
+
+                        Button("Continue") {
+                            state.screen = .rackInput
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .controlSize(.large)
+                }
                 .padding(.horizontal)
-
-            HStack {
-                Button("Apply") {
-                    state.applyCorrections()
-                }
-                .buttonStyle(.bordered)
-
-                Button("Continue") {
-                    state.screen = .rackInput
-                }
-                .buttonStyle(.borderedProminent)
             }
-            .controlSize(.large)
+            .padding(.bottom, 18)
         }
         .navigationTitle("Correct board")
         .toolbar {
@@ -71,7 +62,53 @@ struct BoardCorrectionView: View {
                     Label("Back", systemImage: "chevron.left")
                 }
             }
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    correctionsFocused = false
+                }
+            }
         }
+    }
+
+    private var boardStatus: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Text("Detected tiles: \(state.detectedTileCount)")
+                    .font(.footnote.weight(.semibold))
+                if !state.autoRepairedCellKeys.isEmpty {
+                    Label("\(state.autoRepairedCellKeys.count)", systemImage: "checkmark.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.green)
+                }
+                if !state.reviewCellKeys.isEmpty {
+                    Label("\(state.reviewCellKeys.count)", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            if !state.autoRepairStatus.isEmpty {
+                Text("Auto-corrected: \(state.autoRepairStatus)")
+                    .font(.footnote)
+                    .foregroundStyle(.green)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !state.reviewStatus.isEmpty {
+                Text(state.reviewStatus)
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !state.boardValidationStatus.isEmpty {
+                Text(state.boardValidationStatus)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal)
     }
 }
 
@@ -95,7 +132,7 @@ struct BoardGridView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let labelSize: CGFloat = 18
+            let labelSize: CGFloat = min(24, max(18, min(geometry.size.width, geometry.size.height) * 0.045))
             let boardSize = min(geometry.size.width, geometry.size.height) - labelSize
             let cellSize = boardSize / CGFloat(15)
 
@@ -126,7 +163,7 @@ struct BoardGridView: View {
                                         .fill(fillColor(row: row, column: column, highlighted: isHighlighted, needsReview: needsReview))
                                         .border(borderColor(highlighted: isHighlighted, needsReview: needsReview), width: isHighlighted || needsReview ? 2 : 1)
                                     Text(board[row, column].letter.map(String.init) ?? "")
-                                        .font(.system(size: max(10, cellSize * 0.48), weight: .bold))
+                                        .font(.system(size: max(11, cellSize * 0.52), weight: .bold))
                                         .foregroundStyle(.primary)
                                 }
                             }
@@ -140,7 +177,7 @@ struct BoardGridView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .aspectRatio(1, contentMode: .fit)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 6)
     }
 
     private func fillColor(row: Int, column: Int, highlighted: Bool, needsReview: Bool) -> Color {

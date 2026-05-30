@@ -146,6 +146,7 @@ struct OCRFixtureTests {
             ("board-real-7295.jpg", "ANIMĄ"),
             ("board-real-7295.jpg", "SROCZYMI"),
             ("board-real-7330.jpg", "DLAŃ"),
+            ("board-real-7330.jpg", "BLATY"),
             ("board-real-7331.jpg", "REJ")
         ]
     )
@@ -164,6 +165,8 @@ struct OCRFixtureTests {
         switch expectedWord {
         case "SROCZYMI":
             [expectedWord, "OM"]
+        case "BLATY":
+            [expectedWord, "KA"]
         default:
             [expectedWord]
         }

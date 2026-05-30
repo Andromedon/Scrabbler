@@ -435,7 +435,7 @@ public struct DictionaryBoardRepairer: Sendable {
 
         let missingIndices = cells.indices.filter { cells[$0].letter == nil }
         let knownCount = cells.count - missingIndices.count
-        guard (1...4).contains(missingIndices.count),
+        guard (1...7).contains(missingIndices.count),
               knownCount >= (missingIndices.count <= 2 ? 2 : 1),
               (missingIndices.count > 2 || missingIndices.allSatisfy({ $0 > 0 && $0 < cells.count - 1 })),
               let words = dictionary.wordsByLength[cells.count] else {
@@ -483,7 +483,7 @@ public struct DictionaryBoardRepairer: Sendable {
         guard mismatchIndices.count <= 1 else {
             return nil
         }
-        if missingIndices.count > 2 && !mismatchIndices.isEmpty {
+        if missingIndices.count > 4 && mismatchIndices.count > 1 {
             return nil
         }
 
@@ -530,7 +530,7 @@ public struct DictionaryBoardRepairer: Sendable {
         }
         if missingIndices.count > 2 {
             guard strongMissingEvidenceCount == missingIndices.count,
-                  scoreDigitMatchCount > 0 else {
+                  scoreDigitMatchCount >= requiredScoreDigitMatches(forMissingCount: missingIndices.count) else {
                 return nil
             }
         }
@@ -540,9 +540,17 @@ public struct DictionaryBoardRepairer: Sendable {
             let expected = expectedLetters[index]
             guard let current = cell.letter,
                   let read = cellsByKey[Self.key(row: cell.row, column: cell.column)],
-                  read.confidence < 0.45,
-                  read.detectedScoreDigit.map({ letterValues[expected] == $0 || letterValues[current] != $0 }) ?? true else {
+                  read.confidence < 0.45 else {
                 return nil
+            }
+            if missingIndices.count > 4 {
+                guard canSubstituteLongGapMismatch(read, current: current, expected: expected) else {
+                    return nil
+                }
+            } else {
+                guard read.detectedScoreDigit.map({ letterValues[expected] == $0 || letterValues[current] != $0 }) ?? true else {
+                    return nil
+                }
             }
 
             repairedBoard = repairedBoard.setCell(row: cell.row, column: cell.column, letter: expected)
@@ -570,6 +578,23 @@ public struct DictionaryBoardRepairer: Sendable {
             invalidWordReduction: max(1, beforeInvalid - afterInvalid),
             score: score
         )
+    }
+
+    private func requiredScoreDigitMatches(forMissingCount missingCount: Int) -> Int {
+        missingCount > 4 ? 2 : 1
+    }
+
+    private func canSubstituteLongGapMismatch(_ cell: CellRead, current: Character, expected: Character) -> Bool {
+        if let digit = cell.detectedScoreDigit,
+           letterValues[expected] == digit || letterValues[current] != digit {
+            return true
+        }
+
+        guard let candidate = cell.candidates.first(where: { $0.letter == expected }) else {
+            return false
+        }
+
+        return 1 - candidate.distance >= 0.84
     }
 
     private func gapRepairCandidate(

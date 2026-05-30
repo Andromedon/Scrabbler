@@ -151,6 +151,7 @@ struct OCRFixtureTests {
             ("board-real-7330.jpg", "DLAŃ"),
             ("board-real-7330.jpg", "BLATY"),
             ("board-real-7330.jpg", "TEGO"),
+            ("board-real-7330.jpg", "SERIA"),
             ("board-real-7331.jpg", "REJ")
         ]
     )

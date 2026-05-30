@@ -162,9 +162,12 @@ struct BoardGridView: View {
                                     Rectangle()
                                         .fill(fillColor(row: row, column: column, highlighted: isHighlighted, needsReview: needsReview))
                                         .border(borderColor(highlighted: isHighlighted, needsReview: needsReview), width: isHighlighted || needsReview ? 2 : 1)
-                                    Text(board[row, column].letter.map(String.init) ?? "")
-                                        .font(.system(size: max(11, cellSize * 0.52), weight: .bold))
-                                        .foregroundStyle(.primary)
+                                    Text(cellText(row: row, column: column))
+                                        .font(.system(
+                                            size: textSize(row: row, column: column, cellSize: cellSize),
+                                            weight: board[row, column].letter == nil ? .semibold : .bold
+                                        ))
+                                        .foregroundStyle(textColor(row: row, column: column))
                                 }
                             }
                             .buttonStyle(.plain)
@@ -187,7 +190,22 @@ struct BoardGridView: View {
         if needsReview {
             return Color.orange.opacity(board[row, column].letter == nil ? 0.35 : 0.65)
         }
-        return board[row, column].letter == nil ? Color(.secondarySystemBackground) : Color.orange.opacity(0.85)
+        if board[row, column].letter != nil {
+            return Color.orange.opacity(0.85)
+        }
+
+        switch board[row, column].bonus {
+        case .doubleLetter:
+            return Color.green.opacity(0.85)
+        case .tripleLetter:
+            return Color.blue.opacity(0.75)
+        case .doubleWord:
+            return Color.orange.opacity(0.85)
+        case .tripleWord:
+            return Color.red.opacity(0.75)
+        case .none:
+            return Color(.secondarySystemBackground)
+        }
     }
 
     private func borderColor(highlighted: Bool, needsReview: Bool) -> Color {
@@ -198,6 +216,37 @@ struct BoardGridView: View {
             return Color.yellow
         }
         return Color.white
+    }
+
+    private func cellText(row: Int, column: Int) -> String {
+        if let letter = board[row, column].letter {
+            return String(letter)
+        }
+
+        switch board[row, column].bonus {
+        case .doubleLetter:
+            return "2L"
+        case .tripleLetter:
+            return "3L"
+        case .doubleWord:
+            return "2W"
+        case .tripleWord:
+            return "3W"
+        case .none:
+            return ""
+        }
+    }
+
+    private func textSize(row: Int, column: Int, cellSize: CGFloat) -> CGFloat {
+        board[row, column].letter == nil ? max(8, cellSize * 0.30) : max(11, cellSize * 0.52)
+    }
+
+    private func textColor(row: Int, column: Int) -> Color {
+        guard board[row, column].letter == nil else {
+            return .primary
+        }
+
+        return board[row, column].bonus == .none ? .clear : .white
     }
 
     static func key(row: Int, column: Int) -> String {

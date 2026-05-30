@@ -1601,12 +1601,12 @@ private final class BoardColorSampler {
         let darkRatio = Double(darkPixels) / Double(sampledPixels)
         let whiteRatio = Double(whitePixels) / Double(sampledPixels)
 
-        guard orangeRatio >= 0.35 else { return false }
-        if darkRatio > 0.01 { return true }
-        if bonus == .doubleWord {
-            return whiteRatio > 0.08
-        }
-        return whiteRatio > 0.025
+        return BoardOccupancyClassifier.isOccupied(
+            orangeRatio: orangeRatio,
+            darkRatio: darkRatio,
+            whiteRatio: whiteRatio,
+            bonus: bonus
+        )
     }
 
     private func isRedBadge(red: Int, green: Int, blue: Int) -> Bool {
@@ -1638,6 +1638,22 @@ private final class BoardColorSampler {
             }
         }
         return false
+    }
+}
+
+enum BoardOccupancyClassifier {
+    static func isOccupied(
+        orangeRatio: Double,
+        darkRatio: Double,
+        whiteRatio: Double,
+        bonus: BonusType
+    ) -> Bool {
+        guard orangeRatio >= 0.35 else { return false }
+        if darkRatio > 0.01 { return true }
+        if bonus == .doubleWord {
+            return whiteRatio > 0.08
+        }
+        return whiteRatio > 0.025
     }
 }
 

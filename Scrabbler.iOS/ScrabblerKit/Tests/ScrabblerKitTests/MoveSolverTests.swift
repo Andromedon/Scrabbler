@@ -103,6 +103,25 @@ struct MoveSolverTests {
         #expect(moves[0].word <= moves[1].word || moves[0].score > moves[1].score)
     }
 
+    @Test func rankedMovesStayStableForRepresentativeConnectedBoard() throws {
+        let solver = solverForWords("TOK", "KOT", "OKA", "KOSA", "OSA", "SOK", "TO", "TOS", "SA", "AS")
+        let board = emptyBoardWithCenterDoubleWord()
+            .setCell(row: 7, column: 7, letter: "O")
+            .setCell(row: 7, column: 8, letter: "K")
+            .setCell(row: 6, column: 6, letter: "T")
+            .setCell(row: 8, column: 6, letter: "S")
+
+        let moves = try solver.findBestMoves(board: board, rack: try Rack.parse("TAAS"), limit: 5)
+
+        #expect(moves.map(describeMove) == [
+            "AS@J8:V:2:AJ8,SJ9|6|OKA",
+            "SA@J7:V:2:SJ7,AJ8|6|OKA",
+            "OKA@H8:H:1:AJ8|4",
+            "AS@F9:V:2:AF9,SF10|4|AS",
+            "AS@G10:H:2:AG10,SH10|4|SA"
+        ])
+    }
+
     private func solverForWords(_ words: String...) -> MoveSolver {
         MoveSolver(dictionary: PolishWordDictionary.fromWords(words), letterValues: values())
     }
@@ -126,5 +145,18 @@ struct MoveSolverTests {
             "Z": 1,
             "Ż": 5
         ]
+    }
+
+    private func describeMove(_ move: Move) -> String {
+        let direction = move.direction == .horizontal ? "H" : "V"
+        let placed = move.placedTiles
+            .map { "\($0.letter)\(coordinate($0.row, $0.column))" }
+            .joined(separator: ",")
+        let crossWords = move.crossWords.isEmpty ? "" : "|\(move.crossWords.joined(separator: ","))"
+        return "\(move.word)@\(coordinate(move.row, move.column)):\(direction):\(move.placedTiles.count):\(placed)|\(move.score)\(crossWords)"
+    }
+
+    private func coordinate(_ row: Int, _ column: Int) -> String {
+        "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
     }
 }

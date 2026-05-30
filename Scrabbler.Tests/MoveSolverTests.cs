@@ -140,6 +140,29 @@ public sealed class MoveSolverTests
         Assert.True(string.CompareOrdinal(moves[0].Word, moves[1].Word) <= 0 || moves[0].Score > moves[1].Score);
     }
 
+    [Fact]
+    public void RankedMovesStayStableForRepresentativeConnectedBoard()
+    {
+        var solver = SolverForWords("TOK", "KOT", "OKA", "KOSA", "OSA", "SOK", "TO", "TOS", "SA", "AS");
+        var board = EmptyBoardWithCenterDoubleWord()
+            .SetCell(7, 7, 'O')
+            .SetCell(7, 8, 'K')
+            .SetCell(6, 6, 'T')
+            .SetCell(8, 6, 'S');
+
+        var moves = solver.FindBestMoves(board, Rack.Parse("TAAS"), 5);
+
+        Assert.Equal(
+            [
+                "AS@J8:V:2:AJ8,SJ9|6|OKA",
+                "SA@J7:V:2:SJ7,AJ8|6|OKA",
+                "OKA@H8:H:1:AJ8|4",
+                "AS@F9:V:2:AF9,SF10|4|AS",
+                "AS@G10:H:2:AG10,SH10|4|SA"
+            ],
+            moves.Select(DescribeMove).ToArray());
+    }
+
     private static MoveSolver SolverForWords(params string[] words)
     {
         return new MoveSolver(PolishWordDictionary.FromWords(words), Values());
@@ -167,5 +190,18 @@ public sealed class MoveSolverTests
             ['Z'] = 1,
             ['Ż'] = 5
         };
+    }
+
+    private static string DescribeMove(Move move)
+    {
+        var direction = move.Direction == Direction.Horizontal ? "H" : "V";
+        var placed = string.Join(",", move.PlacedTiles.Select(tile => $"{tile.Letter}{Coordinate(tile.Row, tile.Column)}"));
+        var crossWords = move.CrossWords.Count == 0 ? "" : "|" + string.Join(",", move.CrossWords);
+        return $"{move.Word}@{Coordinate(move.Row, move.Column)}:{direction}:{move.PlacedTiles.Count}:{placed}|{move.Score}{crossWords}";
+    }
+
+    private static string Coordinate(int row, int column)
+    {
+        return $"{(char)('A' + column)}{row + 1}";
     }
 }

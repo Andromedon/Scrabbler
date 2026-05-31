@@ -324,8 +324,7 @@ public struct DictionaryBoardRepairer: Sendable {
             + gapRepairCandidates(on: board, cellsByKey: cellsByKey)
             + multiGapRepairCandidates(on: board, cellsByKey: cellsByKey))
             .filter { candidate in
-                candidate.repairs.flatMap { affectedWords(on: candidate.board, row: $0.row, column: $0.column) }
-                    .allSatisfy { dictionary.contains($0.text) }
+                doesNotIntroduceNewInvalidAffectedWords(candidate, on: board)
             }
 
         var deduplicated: [String: RepairCandidate] = [:]
@@ -491,6 +490,8 @@ public struct DictionaryBoardRepairer: Sendable {
         var repairs: [BoardRepair] = []
         var score = Double(word.count) - Double(missingIndices.count) * 0.12
         var strongMissingEvidenceCount = 0
+        var missingEvidenceScore = 0.0
+        var weakestMissingEvidence = 1.0
         var scoreDigitMatchCount = 0
         for index in missingIndices {
             let cell = cells[index]
@@ -506,6 +507,9 @@ public struct DictionaryBoardRepairer: Sendable {
                     return nil
                 }
 
+                let evidence = 1 - candidate.distance
+                missingEvidenceScore += evidence
+                weakestMissingEvidence = min(weakestMissingEvidence, evidence)
                 strongMissingEvidenceCount += 1
                 if let digit = read.detectedScoreDigit, letterValues[expected] == digit {
                     scoreDigitMatchCount += 1
@@ -530,7 +534,12 @@ public struct DictionaryBoardRepairer: Sendable {
         }
         if missingIndices.count > 2 {
             guard strongMissingEvidenceCount == missingIndices.count,
-                  scoreDigitMatchCount >= requiredScoreDigitMatches(forMissingCount: missingIndices.count) else {
+                  scoreDigitMatchCount >= requiredScoreDigitMatches(forMissingCount: missingIndices.count) ||
+                    hasVeryStrongMissingGlyphEvidence(
+                        totalScore: missingEvidenceScore,
+                        weakestScore: weakestMissingEvidence,
+                        missingCount: missingIndices.count
+                    ) else {
                 return nil
             }
         }
@@ -564,9 +573,8 @@ public struct DictionaryBoardRepairer: Sendable {
             score += 0.35 - read.confidence * 0.20
         }
 
-        let affected = repairs.flatMap { affectedWords(on: repairedBoard, row: $0.row, column: $0.column) }
-        guard !affected.isEmpty,
-              affected.allSatisfy({ dictionary.contains($0.text) }) else {
+        guard !repairs.flatMap({ affectedWords(on: repairedBoard, row: $0.row, column: $0.column) }).isEmpty,
+              repairsDoNotIntroduceNewInvalidAffectedWords(repairs, originalBoard: board, repairedBoard: repairedBoard) else {
             return nil
         }
 
@@ -582,6 +590,12 @@ public struct DictionaryBoardRepairer: Sendable {
 
     private func requiredScoreDigitMatches(forMissingCount missingCount: Int) -> Int {
         missingCount > 4 ? 2 : 1
+    }
+
+    private func hasVeryStrongMissingGlyphEvidence(totalScore: Double, weakestScore: Double, missingCount: Int) -> Bool {
+        guard missingCount > 4 else { return false }
+        let averageScore = totalScore / Double(missingCount)
+        return weakestScore >= 0.86 && averageScore >= 0.91
     }
 
     private func canSubstituteLongGapMismatch(_ cell: CellRead, current: Character, expected: Character) -> Bool {
@@ -786,8 +800,8 @@ public struct DictionaryBoardRepairer: Sendable {
             return nil
         }
 
-        let affected = repairs.flatMap { affectedWords(on: repairedBoard, row: $0.row, column: $0.column) }
-        guard !affected.isEmpty, affected.allSatisfy({ dictionary.contains($0.text) }) else {
+        guard !repairs.flatMap({ affectedWords(on: repairedBoard, row: $0.row, column: $0.column) }).isEmpty,
+              repairsDoNotIntroduceNewInvalidAffectedWords(repairs, originalBoard: board, repairedBoard: repairedBoard) else {
             return nil
         }
 
@@ -936,6 +950,75 @@ public struct DictionaryBoardRepairer: Sendable {
     private func affectedWords(on board: Board, row: Int, column: Int) -> [BoardWord] {
         BoardWordExtractor.extractWords(from: board).filter { word in
             word.coordinates.contains { $0.row == row && $0.column == column }
+        }
+    }
+
+    private func doesNotIntroduceNewInvalidAffectedWords(_ candidate: RepairCandidate, on originalBoard: Board) -> Bool {
+        repairsDoNotIntroduceNewInvalidAffectedWords(
+            candidate.repairs,
+            originalBoard: originalBoard,
+            repairedBoard: candidate.board
+        )
+    }
+
+    private func repairsDoNotIntroduceNewInvalidAffectedWords(
+        _ repairs: [BoardRepair],
+        originalBoard: Board,
+        repairedBoard: Board
+    ) -> Bool {
+        let previouslyInvalidWords = repairs
+            .flatMap { relevantOriginalWords(on: originalBoard, row: $0.row, column: $0.column) }
+            .filter { !dictionary.contains($0.text) }
+        let previouslyInvalidShapes = Set(previouslyInvalidWords.map(wordShapeKey))
+
+        return repairs
+            .flatMap { affectedWords(on: repairedBoard, row: $0.row, column: $0.column) }
+            .allSatisfy { word in
+                dictionary.contains(word.text) ||
+                    previouslyInvalidShapes.contains(wordShapeKey(word)) ||
+                    isExtensionOfPreviouslyInvalidWord(word, previousWords: previouslyInvalidWords)
+            }
+    }
+
+    private func relevantOriginalWords(on board: Board, row: Int, column: Int) -> [BoardWord] {
+        BoardWordExtractor.extractWords(from: board).filter { word in
+            if word.coordinates.contains(where: { $0.row == row && $0.column == column }) {
+                return true
+            }
+
+            guard let first = word.coordinates.first,
+                  let last = word.coordinates.last else {
+                return false
+            }
+
+            switch word.direction {
+            case .horizontal:
+                return first.row == row && (first.column == column + 1 || last.column == column - 1)
+            case .vertical:
+                return first.column == column && (first.row == row + 1 || last.row == row - 1)
+            }
+        }
+    }
+
+    private func wordShapeKey(_ word: BoardWord) -> String {
+        let cells = word.coordinates
+            .map { "\($0.row):\($0.column)" }
+            .joined(separator: ",")
+        return "\(word.direction.rawValue):\(cells)"
+    }
+
+    private func isExtensionOfPreviouslyInvalidWord(_ word: BoardWord, previousWords: [BoardWord]) -> Bool {
+        let coordinates = word.coordinates.map { "\($0.row):\($0.column)" }
+        guard coordinates.count > 2 else { return false }
+
+        return previousWords.contains { previous in
+            guard previous.direction == word.direction,
+                  previous.coordinates.count < word.coordinates.count else {
+                return false
+            }
+
+            let previousCoordinates = previous.coordinates.map { "\($0.row):\($0.column)" }
+            return coordinates.starts(with: previousCoordinates) || coordinates.suffix(previousCoordinates.count) == previousCoordinates[...]
         }
     }
 

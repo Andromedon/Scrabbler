@@ -253,6 +253,86 @@ struct DictionaryBoardRepairerTests {
         #expect(repaired.appliedRepairs.isEmpty)
     }
 
+    @Test func fillsStrongLongGapWhenItOnlyExtendsExistingInvalidCrossWord() {
+        let board = emptyBoard()
+            .setCell(row: 3, column: 7, letter: "P")
+            .setCell(row: 4, column: 7, letter: "R")
+            .setCell(row: 5, column: 7, letter: "O")
+            .setCell(row: 6, column: 7, letter: "S")
+            .setCell(row: 7, column: 11, letter: "L")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 7, column: 7, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "S", distance: 0.07)
+            ]),
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "Z", distance: 0.07)
+            ]),
+            CellRead(row: 7, column: 9, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "K", distance: 0.10)
+            ]),
+            CellRead(row: 7, column: 10, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "O", distance: 0.06)
+            ]),
+            CellRead(row: 7, column: 11, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "L", distance: 0.06)
+            ]),
+            CellRead(row: 7, column: 12, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "O", distance: 0.06)
+            ]),
+            CellRead(row: 7, column: 13, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "N", distance: 0.06)
+            ]),
+            CellRead(row: 7, column: 14, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "Y", distance: 0.09)
+            ])
+        ])
+
+        let repaired = repairer(words: "SZKOLONY").repair(result)
+
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("SZKOLONY"))
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("PROSS"))
+    }
+
+    @Test func refusesStrongLongGapWhenItExtendsExistingValidCrossWordIntoInvalidWord() {
+        let board = emptyBoard()
+            .setCell(row: 3, column: 7, letter: "P")
+            .setCell(row: 4, column: 7, letter: "R")
+            .setCell(row: 5, column: 7, letter: "O")
+            .setCell(row: 6, column: 7, letter: "S")
+            .setCell(row: 7, column: 11, letter: "L")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 7, column: 7, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "S", distance: 0.07)
+            ]),
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "Z", distance: 0.07)
+            ]),
+            CellRead(row: 7, column: 9, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "K", distance: 0.10)
+            ]),
+            CellRead(row: 7, column: 10, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "O", distance: 0.06)
+            ]),
+            CellRead(row: 7, column: 11, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "L", distance: 0.06)
+            ]),
+            CellRead(row: 7, column: 12, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "O", distance: 0.06)
+            ]),
+            CellRead(row: 7, column: 13, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "N", distance: 0.06)
+            ]),
+            CellRead(row: 7, column: 14, letter: nil, confidence: 0, candidates: [
+                LetterCandidate(letter: "Y", distance: 0.09)
+            ])
+        ])
+
+        let repaired = repairer(words: "SZKOLONY", "PROS").repair(result)
+
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("SZKOLONY") == false)
+        #expect(repaired.appliedRepairs.isEmpty)
+    }
+
     @Test func refusesTwoGapPatternWhenItBreaksCrossWord() {
         let board = emptyBoard()
             .setCell(row: 6, column: 8, letter: "O")

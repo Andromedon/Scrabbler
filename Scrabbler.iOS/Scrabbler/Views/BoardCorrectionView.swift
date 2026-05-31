@@ -11,7 +11,7 @@ struct BoardCorrectionView: View {
                 BoardGridView(
                     board: state.board,
                     highlightedCells: state.autoRepairedCellKeys,
-                    warningCells: state.reviewCellKeys,
+                    warningCells: warningCellKeys,
                     onTapCell: { row, column in
                         state.appendCorrection(row: row, column: column)
                         correctionsFocused = true
@@ -81,8 +81,8 @@ struct BoardCorrectionView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.green)
                 }
-                if !state.reviewCellKeys.isEmpty {
-                    Label("\(state.reviewCellKeys.count)", systemImage: "exclamationmark.triangle.fill")
+                if !warningCellKeys.isEmpty {
+                    Label("\(warningCellKeys.count)", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.orange)
                 }
@@ -109,6 +109,10 @@ struct BoardCorrectionView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
+    }
+
+    private var warningCellKeys: Set<String> {
+        state.reviewCellKeys.union(state.invalidWordCellKeys)
     }
 }
 

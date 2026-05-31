@@ -23,6 +23,7 @@ final class AppState: ObservableObject {
     @Published var autoRepairStatus = ""
     @Published var autoRepairedCellKeys: Set<String> = []
     @Published var reviewCellKeys: Set<String> = []
+    @Published var invalidWordCellKeys: Set<String> = []
     @Published var reviewStatus = ""
     @Published var isBusy = false
     @Published var status = ""
@@ -94,6 +95,7 @@ final class AppState: ObservableObject {
             autoRepairStatus = ""
             autoRepairedCellKeys = []
             reviewCellKeys = []
+            invalidWordCellKeys = []
             reviewStatus = ""
             boardValidationStatus = "Board could not be read automatically."
             screen = .boardCorrection
@@ -109,6 +111,7 @@ final class AppState: ObservableObject {
             autoRepairStatus = ""
             autoRepairedCellKeys = []
             reviewCellKeys = []
+            invalidWordCellKeys = []
             reviewStatus = ""
             refreshBoardValidation()
         } catch {
@@ -182,6 +185,7 @@ final class AppState: ObservableObject {
         autoRepairStatus = ""
         autoRepairedCellKeys = []
         reviewCellKeys = []
+        invalidWordCellKeys = []
         reviewStatus = ""
         boardValidationStatus = ""
         lastCellReads = []
@@ -387,25 +391,32 @@ final class AppState: ObservableObject {
 
     private func refreshBoardValidation() {
         guard !board.isEmpty else {
+            invalidWordCellKeys = []
             boardValidationStatus = ""
             return
         }
 
         guard let dictionary else {
+            invalidWordCellKeys = []
             boardValidationStatus = boardValidationWaitingText()
             return
         }
 
         let words = BoardWordExtractor.extractWords(from: board)
         guard !words.isEmpty else {
+            invalidWordCellKeys = []
             boardValidationStatus = "No complete board words detected yet."
             return
         }
 
         let invalidWords = words.filter { !dictionary.contains($0.text) }
         if invalidWords.isEmpty {
+            invalidWordCellKeys = []
             boardValidationStatus = "All detected board words are in the dictionary."
         } else {
+            invalidWordCellKeys = Set(invalidWords.flatMap { word in
+                word.coordinates.map { Self.cellKey(row: $0.row, column: $0.column) }
+            })
             let preview = invalidWords
                 .prefix(8)
                 .map { "\($0.text) \(coordinate($0.coordinates[0].row, $0.coordinates[0].column))" }

@@ -20,6 +20,7 @@ struct BoardCorrectionView: View {
                 .frame(maxHeight: 520)
 
                 boardStatus
+                invalidWordsReview
 
                 VStack(spacing: 10) {
                     TextField("A1=Ł, H8=?, J10=.", text: $state.correctionsText, axis: .vertical)
@@ -109,6 +110,46 @@ struct BoardCorrectionView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
+    }
+
+    private var invalidWordsReview: some View {
+        Group {
+            if !state.invalidBoardWords.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Words to check", systemImage: "text.badge.exclamationmark")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.orange)
+
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 104), spacing: 8)],
+                        alignment: .leading,
+                        spacing: 8
+                    ) {
+                        ForEach(state.invalidBoardWords) { word in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(word.text)
+                                    .font(.callout.weight(.semibold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
+                                Text(word.coordinate)
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(Color.orange.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.orange.opacity(0.5), lineWidth: 1)
+                            )
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+            }
+        }
     }
 
     private var warningCellKeys: Set<String> {

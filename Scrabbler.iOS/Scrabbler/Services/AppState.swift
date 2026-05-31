@@ -3,6 +3,15 @@ import PhotosUI
 import SwiftUI
 import ScrabblerKit
 
+struct InvalidBoardWord: Identifiable, Equatable {
+    let text: String
+    let coordinate: String
+
+    var id: String {
+        "\(coordinate):\(text)"
+    }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     enum Screen {
@@ -24,6 +33,7 @@ final class AppState: ObservableObject {
     @Published var autoRepairedCellKeys: Set<String> = []
     @Published var reviewCellKeys: Set<String> = []
     @Published var invalidWordCellKeys: Set<String> = []
+    @Published var invalidBoardWords: [InvalidBoardWord] = []
     @Published var reviewStatus = ""
     @Published var isBusy = false
     @Published var status = ""
@@ -96,6 +106,7 @@ final class AppState: ObservableObject {
             autoRepairedCellKeys = []
             reviewCellKeys = []
             invalidWordCellKeys = []
+            invalidBoardWords = []
             reviewStatus = ""
             boardValidationStatus = "Board could not be read automatically."
             screen = .boardCorrection
@@ -112,6 +123,7 @@ final class AppState: ObservableObject {
             autoRepairedCellKeys = []
             reviewCellKeys = []
             invalidWordCellKeys = []
+            invalidBoardWords = []
             reviewStatus = ""
             refreshBoardValidation()
         } catch {
@@ -186,6 +198,7 @@ final class AppState: ObservableObject {
         autoRepairedCellKeys = []
         reviewCellKeys = []
         invalidWordCellKeys = []
+        invalidBoardWords = []
         reviewStatus = ""
         boardValidationStatus = ""
         lastCellReads = []
@@ -392,12 +405,14 @@ final class AppState: ObservableObject {
     private func refreshBoardValidation() {
         guard !board.isEmpty else {
             invalidWordCellKeys = []
+            invalidBoardWords = []
             boardValidationStatus = ""
             return
         }
 
         guard let dictionary else {
             invalidWordCellKeys = []
+            invalidBoardWords = []
             boardValidationStatus = boardValidationWaitingText()
             return
         }
@@ -405,6 +420,7 @@ final class AppState: ObservableObject {
         let words = BoardWordExtractor.extractWords(from: board)
         guard !words.isEmpty else {
             invalidWordCellKeys = []
+            invalidBoardWords = []
             boardValidationStatus = "No complete board words detected yet."
             return
         }
@@ -412,11 +428,18 @@ final class AppState: ObservableObject {
         let invalidWords = words.filter { !dictionary.contains($0.text) }
         if invalidWords.isEmpty {
             invalidWordCellKeys = []
+            invalidBoardWords = []
             boardValidationStatus = "All detected board words are in the dictionary."
         } else {
             invalidWordCellKeys = Set(invalidWords.flatMap { word in
                 word.coordinates.map { Self.cellKey(row: $0.row, column: $0.column) }
             })
+            invalidBoardWords = invalidWords.map { word in
+                InvalidBoardWord(
+                    text: word.text,
+                    coordinate: coordinate(word.coordinates[0].row, word.coordinates[0].column)
+                )
+            }
             let preview = invalidWords
                 .prefix(8)
                 .map { "\($0.text) \(coordinate($0.coordinates[0].row, $0.coordinates[0].column))" }

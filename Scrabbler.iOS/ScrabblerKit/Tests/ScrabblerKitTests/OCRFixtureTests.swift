@@ -152,7 +152,8 @@ struct OCRFixtureTests {
             ("board-real-7330.jpg", "BLATY"),
             ("board-real-7330.jpg", "TEGO"),
             ("board-real-7330.jpg", "SERIA"),
-            ("board-real-7331.jpg", "REJ")
+            ("board-real-7331.jpg", "REJ"),
+            ("board-real-7367.jpg", "STAZIE")
         ]
     )
     private func repairsDictionaryBackedDiacriticParityGaps(fileName: String, expectedWord: String) async throws {

@@ -98,6 +98,16 @@ final class AppState: ObservableObject {
             invalidBoardWords = []
             reviewStatus = ""
             boardValidationStatus = ""
+
+            if dictionary == nil, isDictionaryCacheAvailable {
+                status = "Validating board..."
+                do {
+                    _ = try await loadCachedSolverForUse()
+                } catch {
+                    boardValidationStatus = boardValidationWaitingText()
+                }
+            }
+
             refreshReviewCells()
             applyDictionaryRepairsIfPossible()
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count

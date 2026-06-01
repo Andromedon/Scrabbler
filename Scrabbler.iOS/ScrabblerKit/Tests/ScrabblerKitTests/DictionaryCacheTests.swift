@@ -54,6 +54,24 @@ struct DictionaryCacheTests {
         #expect(reloaded.dictionary.contains("DOM"))
     }
 
+    @Test func invalidatesCacheWhenSameSizeSourceContentChanges() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let dictionary = root.appendingPathComponent("dictionary.txt")
+        let cache = root.appendingPathComponent("cache", isDirectory: true)
+        try "ALA\nKOT\n".write(to: dictionary, atomically: true, encoding: .utf8)
+
+        _ = try PolishWordDictionary.loadCached(from: dictionary, cacheDirectory: cache)
+        try "ALA\nDOM\n".write(to: dictionary, atomically: true, encoding: .utf8)
+
+        let reloaded = try PolishWordDictionary.loadCached(from: dictionary, cacheDirectory: cache)
+        #expect(reloaded.usedCache == false)
+        #expect(reloaded.dictionary.contains("DOM"))
+        #expect(!reloaded.dictionary.contains("KOT"))
+    }
+
     @Test func reusesCacheAcrossEquivalentBundlePaths() throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -68,9 +86,14 @@ struct DictionaryCacheTests {
         let content = "ALA\nKOT\nDOM\n"
         try content.write(to: firstDictionary, atomically: true, encoding: .utf8)
         try content.write(to: secondDictionary, atomically: true, encoding: .utf8)
-        let date = Date(timeIntervalSince1970: 1_700_000_000)
-        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: firstDictionary.path)
-        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: secondDictionary.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_700_000_000)],
+            ofItemAtPath: firstDictionary.path
+        )
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_800_000_000)],
+            ofItemAtPath: secondDictionary.path
+        )
 
         let first = try PolishWordDictionary.loadCached(from: firstDictionary, cacheDirectory: cache)
         #expect(first.usedCache == false)

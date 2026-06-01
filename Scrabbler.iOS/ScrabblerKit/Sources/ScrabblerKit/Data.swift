@@ -132,13 +132,16 @@ public struct DictionaryLoadResult: Sendable {
 private struct DictionarySourceMetadata: Codable, Equatable {
     let identifier: String
     let size: UInt64
-    let modificationTime: TimeInterval
+    let contentHash: String
 
     init(url: URL) throws {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        let data = try Data(contentsOf: url)
         self.identifier = url.lastPathComponent
         self.size = (attributes[.size] as? NSNumber)?.uint64Value ?? 0
-        self.modificationTime = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        self.contentHash = SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }
 
@@ -149,7 +152,7 @@ private struct DictionaryCachePayload: Codable {
 }
 
 private enum DictionaryCache {
-    private static let version = 1
+    private static let version = 2
 
     static func cacheURL(for source: DictionarySourceMetadata, cacheDirectory: URL) throws -> URL {
         try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
@@ -162,7 +165,12 @@ private enum DictionaryCache {
     static func read(from url: URL, matching source: DictionarySourceMetadata) throws -> DictionaryCachePayload? {
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         let data = try Data(contentsOf: url)
-        let payload = try PropertyListDecoder().decode(DictionaryCachePayload.self, from: data)
+        let payload: DictionaryCachePayload
+        do {
+            payload = try PropertyListDecoder().decode(DictionaryCachePayload.self, from: data)
+        } catch {
+            return nil
+        }
         guard payload.version == version, payload.source == source else {
             return nil
         }

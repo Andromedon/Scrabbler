@@ -86,10 +86,16 @@ struct BoardCorrectionView: View {
                 if !warningCellKeys.isEmpty {
                     Label("\(warningCellKeys.count)", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
+                    .foregroundStyle(.orange)
                 }
             }
 
+            if !state.lastBoardReadTiming.isEmpty {
+                Text(state.lastBoardReadTiming)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if !state.reviewStatus.isEmpty {
                 Text(state.reviewStatus)
                     .font(.footnote)

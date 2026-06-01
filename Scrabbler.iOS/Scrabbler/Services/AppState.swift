@@ -51,6 +51,7 @@ final class AppState: ObservableObject {
     @Published var reviewStatus = ""
     @Published var isBusy = false
     @Published var status = ""
+    @Published var lastBoardReadTiming = ""
     @Published var lastSolveTiming = ""
     @Published var dictionaryStatus = ""
     @Published var isDictionaryReady = false
@@ -87,12 +88,15 @@ final class AppState: ObservableObject {
         guard let item else { return }
         isBusy = true
         status = "Reading board..."
+        lastBoardReadTiming = ""
+        let totalStartedAt = Date()
         defer {
             isBusy = false
             status = ""
         }
 
         do {
+            let importStartedAt = Date()
             guard let data = try await item.loadTransferable(type: Data.self) else {
                 errorMessage = "Could not read the selected image."
                 return
@@ -102,7 +106,11 @@ final class AppState: ObservableObject {
                 .appendingPathComponent("scrabbler-selected-board")
                 .appendingPathExtension("jpg")
             try data.write(to: url, options: .atomic)
+            let importSeconds = Date().timeIntervalSince(importStartedAt)
+
+            let ocrStartedAt = Date()
             let result = try await reader.readBoard(from: url, bonuses: bonuses)
+            let ocrSeconds = Date().timeIntervalSince(ocrStartedAt)
             board = result.board
             lastCellReads = result.cells
             correctionsText = ""
@@ -114,6 +122,7 @@ final class AppState: ObservableObject {
             reviewStatus = ""
             boardValidationStatus = ""
 
+            let validationStartedAt = Date()
             if dictionary == nil, isDictionaryCacheAvailable {
                 status = "Validating board..."
                 do {
@@ -127,6 +136,13 @@ final class AppState: ObservableObject {
             applyDictionaryRepairsIfPossible()
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
             refreshBoardValidation()
+            let validationSeconds = Date().timeIntervalSince(validationStartedAt)
+            lastBoardReadTiming = Self.boardReadTimingText(
+                importSeconds: importSeconds,
+                ocrSeconds: ocrSeconds,
+                validationSeconds: validationSeconds,
+                totalSeconds: Date().timeIntervalSince(totalStartedAt)
+            )
             screen = .boardCorrection
             warmDictionaryForBoardReviewIfAvailable()
         } catch {
@@ -141,6 +157,7 @@ final class AppState: ObservableObject {
             invalidBoardWords = []
             reviewStatus = ""
             boardValidationStatus = "Board could not be read automatically."
+            lastBoardReadTiming = ""
             screen = .boardCorrection
             errorMessage = error.localizedDescription
         }
@@ -235,6 +252,7 @@ final class AppState: ObservableObject {
         invalidBoardWords = []
         reviewStatus = ""
         boardValidationStatus = ""
+        lastBoardReadTiming = ""
         lastCellReads = []
         screen = .home
     }
@@ -524,6 +542,15 @@ final class AppState: ObservableObject {
     ) -> String {
         let source = solverWasLive ? "solver in memory" : "solver loaded from cache"
         return "\(source) · prepare \(formatSeconds(solverLoadSeconds)) · solve \(formatSeconds(solveSeconds)) · total \(formatSeconds(totalSeconds))"
+    }
+
+    private static func boardReadTimingText(
+        importSeconds: TimeInterval,
+        ocrSeconds: TimeInterval,
+        validationSeconds: TimeInterval,
+        totalSeconds: TimeInterval
+    ) -> String {
+        "photo \(formatSeconds(importSeconds)) · OCR \(formatSeconds(ocrSeconds)) · validation \(formatSeconds(validationSeconds)) · total \(formatSeconds(totalSeconds))"
     }
 
     private static func formatSeconds(_ seconds: TimeInterval) -> String {

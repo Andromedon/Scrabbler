@@ -20,6 +20,7 @@ struct BoardCorrectionView: View {
                 .frame(maxHeight: 520)
 
                 boardStatus
+                ocrReview
                 autoCorrectionsReview
                 invalidWordsReview
 
@@ -163,6 +164,71 @@ struct BoardCorrectionView: View {
         }
     }
 
+    private var ocrReview: some View {
+        Group {
+            if !state.ocrReviewItems.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("OCR review", systemImage: "eye.trianglebadge.exclamationmark")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.orange)
+
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 146), spacing: 10)],
+                        alignment: .leading,
+                        spacing: 10
+                    ) {
+                        ForEach(state.ocrReviewItems) { item in
+                            Button {
+                                state.appendCorrection(row: item.row, column: item.column)
+                                correctionsFocused = true
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack(spacing: 8) {
+                                        Text(item.coordinate)
+                                            .font(.headline.monospacedDigit())
+                                        Spacer(minLength: 4)
+                                        Text(display(item.letter))
+                                            .font(.headline.weight(.semibold))
+                                    }
+
+                                    Text(item.reason)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+
+                                    HStack(spacing: 6) {
+                                        Text("\(Int((item.confidence * 100).rounded()))%")
+                                        if let digit = item.detectedScoreDigit {
+                                            Text("v\(digit)")
+                                        }
+                                        if !item.candidates.isEmpty {
+                                            Text(item.candidates.map(String.init).joined(separator: "/"))
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.75)
+                                        }
+                                    }
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(Color.orange.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.orange.opacity(0.55), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+            }
+        }
+    }
+
     private var invalidWordsReview: some View {
         Group {
             if !state.invalidBoardWords.isEmpty {
@@ -269,7 +335,7 @@ struct BoardGridView: View {
                                     Text(cellText(row: row, column: column))
                                         .font(.system(
                                             size: textSize(row: row, column: column, cellSize: cellSize),
-                                            weight: board[row, column].letter == nil ? .semibold : .bold
+                                            weight: board[row, column].letter == nil ? .medium : .bold
                                         ))
                                         .foregroundStyle(textColor(row: row, column: column))
                                 }
@@ -300,13 +366,13 @@ struct BoardGridView: View {
 
         switch board[row, column].bonus {
         case .doubleLetter:
-            return Color.green.opacity(0.85)
+            return Color.green.opacity(0.18)
         case .tripleLetter:
-            return Color.blue.opacity(0.75)
+            return Color.blue.opacity(0.16)
         case .doubleWord:
-            return Color.orange.opacity(0.85)
+            return Color.orange.opacity(0.18)
         case .tripleWord:
-            return Color.red.opacity(0.75)
+            return Color.red.opacity(0.18)
         case .none:
             return Color(.secondarySystemBackground)
         }
@@ -342,7 +408,7 @@ struct BoardGridView: View {
     }
 
     private func textSize(row: Int, column: Int, cellSize: CGFloat) -> CGFloat {
-        board[row, column].letter == nil ? max(8, cellSize * 0.30) : max(11, cellSize * 0.52)
+        board[row, column].letter == nil ? max(6, cellSize * 0.22) : max(11, cellSize * 0.52)
     }
 
     private func textColor(row: Int, column: Int) -> Color {
@@ -350,7 +416,18 @@ struct BoardGridView: View {
             return .primary
         }
 
-        return board[row, column].bonus == .none ? .clear : .white
+        switch board[row, column].bonus {
+        case .doubleLetter:
+            return Color.green.opacity(0.62)
+        case .tripleLetter:
+            return Color.blue.opacity(0.62)
+        case .doubleWord:
+            return Color.orange.opacity(0.68)
+        case .tripleWord:
+            return Color.red.opacity(0.64)
+        case .none:
+            return .clear
+        }
     }
 
     static func key(row: Int, column: Int) -> String {

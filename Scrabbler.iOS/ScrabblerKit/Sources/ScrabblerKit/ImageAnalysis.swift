@@ -63,6 +63,86 @@ public struct BoardRepair: Equatable, Sendable {
     public let reason: String
 }
 
+public enum CellReviewReason: Equatable, Sendable {
+    case scoreDigitMismatch(detected: Int, expected: Int)
+    case possibleMissedTile
+    case lowConfidence
+    case closeCandidates
+}
+
+public struct CellReview: Equatable, Sendable {
+    public let row: Int
+    public let column: Int
+    public let letter: Character?
+    public let confidence: Double
+    public let candidates: [Character]
+    public let detectedScoreDigit: Int?
+    public let reason: CellReviewReason
+}
+
+public enum BoardReadDiagnostics {
+    public static func reviewCells(
+        in cells: [CellRead],
+        letterValues: [Character: Int],
+        ignoringCellKeys ignoredCellKeys: Set<String> = []
+    ) -> [CellReview] {
+        cells.compactMap { cell in
+            guard !ignoredCellKeys.contains(key(row: cell.row, column: cell.column)),
+                  let reason = reviewReason(for: cell, letterValues: letterValues) else {
+                return nil
+            }
+
+            return CellReview(
+                row: cell.row,
+                column: cell.column,
+                letter: cell.letter,
+                confidence: cell.confidence,
+                candidates: cell.candidates.prefix(4).map(\.letter),
+                detectedScoreDigit: cell.detectedScoreDigit,
+                reason: reason
+            )
+        }
+        .sorted {
+            if $0.row != $1.row { return $0.row < $1.row }
+            return $0.column < $1.column
+        }
+    }
+
+    private static func reviewReason(for cell: CellRead, letterValues: [Character: Int]) -> CellReviewReason? {
+        if let letter = cell.letter,
+           let detectedScoreDigit = cell.detectedScoreDigit,
+           let expectedScore = letterValues[letter],
+           expectedScore != detectedScoreDigit,
+           cell.confidence < 0.90 {
+            return .scoreDigitMismatch(detected: detectedScoreDigit, expected: expectedScore)
+        }
+
+        if cell.letter == nil {
+            return cell.candidates.isEmpty ? nil : .possibleMissedTile
+        }
+
+        if cell.confidence < 0.58 {
+            return .lowConfidence
+        }
+
+        guard cell.candidates.count >= 2 else {
+            return nil
+        }
+
+        let top = 1 - cell.candidates[0].distance
+        let second = 1 - cell.candidates[1].distance
+        if top - second < 0.06 && cell.confidence < 0.82 {
+            return .closeCandidates
+        }
+
+        return nil
+    }
+
+    private static func key(row: Int, column: Int) -> String {
+        "\(row):\(column)"
+    }
+}
+
 public protocol BoardImageReading: Sendable {
     func readBoard(from imageURL: URL, bonuses: [[BonusType]]) async throws -> BoardReadResult
 }
@@ -142,7 +222,14 @@ public struct NativeBoardImageReader: BoardImageReading {
         for row in 0..<Board.size {
             for column in 0..<Board.size {
                 let key = "\(row):\(column)"
-                guard sampler.cellLooksOccupied(row: row, column: column, bonus: bonuses[row][column]) else {
+                let looksOccupied = sampler.cellLooksOccupied(row: row, column: column, bonus: bonuses[row][column])
+                guard looksOccupied else {
+                    if readsByCell[key] == nil,
+                       sampler.cellHasLatentTileEvidence(row: row, column: column, bonus: bonuses[row][column]),
+                       let latentRead = glyphRecognizer?.recognize(row: row, column: column, mapper: mapper, sampler: sampler),
+                       let latentCell = latentCellRead(from: latentRead) {
+                        readsByCell[key] = latentCell
+                    }
                     continue
                 }
 
@@ -163,6 +250,8 @@ public struct NativeBoardImageReader: BoardImageReading {
                 }
             }
         }
+
+        promoteLatentTileRuns(&readsByCell)
 
         var board = Board(bonuses: bonuses)
         let cells = readsByCell.values.sorted {
@@ -204,6 +293,131 @@ public struct NativeBoardImageReader: BoardImageReading {
             confidence: selectedConfidence,
             candidates: mergeCandidates(existing.candidates, glyph.candidates),
             detectedScoreDigit: glyph.detectedScoreDigit ?? existing.detectedScoreDigit
+        )
+    }
+
+    private func promoteLatentTileRuns(_ readsByCell: inout [String: CellRead]) {
+        for direction in [Direction.horizontal] {
+            for line in 0..<Board.size {
+                var index = 0
+                while index < Board.size {
+                    let position = coordinate(line: line, index: index, direction: direction)
+                    guard let read = readsByCell["\(position.row):\(position.column)"],
+                          read.letter != nil || bestLatentCandidate(for: read) != nil else {
+                        index += 1
+                        continue
+                    }
+
+                    var run: [(row: Int, column: Int, read: CellRead)] = []
+                    while index < Board.size {
+                        let current = coordinate(line: line, index: index, direction: direction)
+                        guard let read = readsByCell["\(current.row):\(current.column)"],
+                              read.letter != nil || bestLatentCandidate(for: read) != nil else {
+                            break
+                        }
+
+                        run.append((current.row, current.column, read))
+                        index += 1
+                    }
+
+                    promoteLatentCells(in: run, readsByCell: &readsByCell)
+                }
+            }
+        }
+    }
+
+    private func promoteLatentCells(
+        in run: [(row: Int, column: Int, read: CellRead)],
+        readsByCell: inout [String: CellRead]
+    ) {
+        guard run.count >= 3,
+              run.contains(where: { $0.read.letter != nil }) else {
+            return
+        }
+
+        for item in run where item.read.letter == nil {
+            guard let candidate = bestLatentCandidate(for: item.read) else { continue }
+            readsByCell["\(item.row):\(item.column)"] = CellRead(
+                row: item.row,
+                column: item.column,
+                letter: candidate.letter,
+                confidence: max(item.read.confidence, min(0.78, candidate.score * 0.78)),
+                candidates: item.read.candidates,
+                detectedScoreDigit: item.read.detectedScoreDigit
+            )
+        }
+    }
+
+    private func bestLatentCandidate(for read: CellRead) -> (letter: Character, score: Double)? {
+        guard read.letter == nil,
+              let top = read.candidates.first else {
+            return nil
+        }
+
+        let topScore = 1 - top.distance
+        guard topScore >= 0.84 else { return nil }
+        guard let digit = read.detectedScoreDigit,
+              top.matchedScoreDigit != digit else {
+            return (top.letter, topScore)
+        }
+
+        let matches = read.candidates
+            .map { (candidate: $0, score: 1 - $0.distance) }
+            .filter { $0.candidate.matchedScoreDigit == digit }
+        guard let matched = matches.max(by: { $0.score < $1.score }) else {
+            return topScore >= 0.84 ? (top.letter, topScore) : nil
+        }
+
+        let threshold = scoreDigitOverrideThreshold(top.letter, matched.candidate.letter)
+        if matched.score >= topScore * threshold {
+            return (matched.candidate.letter, matched.score)
+        }
+
+        return topScore >= 0.84 ? (top.letter, topScore) : nil
+    }
+
+    private func scoreDigitOverrideThreshold(_ lhs: Character, _ rhs: Character) -> Double {
+        if isNhPair(lhs, rhs) {
+            return 0.92
+        }
+        if isDobPair(lhs, rhs) {
+            return 0.88
+        }
+        return 1.01
+    }
+
+    private func isNhPair(_ lhs: Character, _ rhs: Character) -> Bool {
+        lhs != rhs && (lhs == "N" || lhs == "H") && (rhs == "N" || rhs == "H")
+    }
+
+    private func isDobPair(_ lhs: Character, _ rhs: Character) -> Bool {
+        lhs != rhs && (lhs == "D" || lhs == "O" || lhs == "B") && (rhs == "D" || rhs == "O" || rhs == "B")
+    }
+
+    private func coordinate(line: Int, index: Int, direction: Direction) -> (row: Int, column: Int) {
+        switch direction {
+        case .horizontal:
+            (line, index)
+        case .vertical:
+            (index, line)
+        }
+    }
+
+    private func latentCellRead(from read: CellRead) -> CellRead? {
+        guard let digit = read.detectedScoreDigit,
+              let top = read.candidates.first,
+              top.matchedScoreDigit == digit,
+              1 - top.distance >= 0.84 else {
+            return nil
+        }
+
+        return CellRead(
+            row: read.row,
+            column: read.column,
+            letter: nil,
+            confidence: 0,
+            candidates: read.candidates,
+            detectedScoreDigit: digit
         )
     }
 
@@ -273,13 +487,6 @@ public struct NativeBoardImageReader: BoardImageReading {
         return ["DL", "TL", "DW"].contains(normalized)
     }
 
-    private func isNhPair(_ lhs: Character, _ rhs: Character) -> Bool {
-        lhs != rhs && (lhs == "N" || lhs == "H") && (rhs == "N" || rhs == "H")
-    }
-
-    private func isDobPair(_ lhs: Character, _ rhs: Character) -> Bool {
-        lhs != rhs && (lhs == "D" || lhs == "O" || lhs == "B") && (rhs == "D" || rhs == "O" || rhs == "B")
-    }
 }
 
 public struct DictionaryBoardRepairer: Sendable {
@@ -1701,6 +1908,26 @@ private final class BoardColorSampler {
     }
 
     func cellLooksOccupied(row: Int, column: Int, bonus: BonusType) -> Bool {
+        let stats = cellColorStats(row: row, column: column)
+        return BoardOccupancyClassifier.isOccupied(
+            orangeRatio: stats.orangeRatio,
+            darkRatio: stats.darkRatio,
+            whiteRatio: stats.whiteRatio,
+            bonus: bonus
+        )
+    }
+
+    func cellHasLatentTileEvidence(row: Int, column: Int, bonus: BonusType) -> Bool {
+        let stats = cellColorStats(row: row, column: column)
+        guard stats.orangeRatio >= 0.18 else { return false }
+        if stats.darkRatio > 0.004 { return true }
+        if bonus == .doubleWord {
+            return false
+        }
+        return stats.whiteRatio > 0.018
+    }
+
+    private func cellColorStats(row: Int, column: Int) -> CellColorStats {
         let rect = mapper.sampleRect(row: row, column: column)
         var orangePixels = 0
         var darkPixels = 0
@@ -1740,16 +1967,14 @@ private final class BoardColorSampler {
             y += step
         }
 
-        guard sampledPixels > 0 else { return false }
-        let orangeRatio = Double(orangePixels) / Double(sampledPixels)
-        let darkRatio = Double(darkPixels) / Double(sampledPixels)
-        let whiteRatio = Double(whitePixels) / Double(sampledPixels)
+        guard sampledPixels > 0 else {
+            return CellColorStats(orangeRatio: 0, darkRatio: 0, whiteRatio: 0)
+        }
 
-        return BoardOccupancyClassifier.isOccupied(
-            orangeRatio: orangeRatio,
-            darkRatio: darkRatio,
-            whiteRatio: whiteRatio,
-            bonus: bonus
+        return CellColorStats(
+            orangeRatio: Double(orangePixels) / Double(sampledPixels),
+            darkRatio: Double(darkPixels) / Double(sampledPixels),
+            whiteRatio: Double(whitePixels) / Double(sampledPixels)
         )
     }
 
@@ -1783,6 +2008,12 @@ private final class BoardColorSampler {
         }
         return false
     }
+}
+
+private struct CellColorStats {
+    let orangeRatio: Double
+    let darkRatio: Double
+    let whiteRatio: Double
 }
 
 enum BoardOccupancyClassifier {

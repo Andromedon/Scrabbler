@@ -25,6 +25,21 @@ struct AutoRepairReviewItem: Identifiable, Equatable {
     }
 }
 
+struct OCRReviewItem: Identifiable, Equatable {
+    let row: Int
+    let column: Int
+    let coordinate: String
+    let letter: Character?
+    let confidence: Double
+    let candidates: [Character]
+    let detectedScoreDigit: Int?
+    let reason: String
+
+    var id: String {
+        "\(row):\(column):\(letter.map(String.init) ?? "."):\(reason)"
+    }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     enum Screen {
@@ -44,6 +59,7 @@ final class AppState: ObservableObject {
     @Published var boardValidationStatus = ""
     @Published var autoRepairStatus = ""
     @Published var autoRepairItems: [AutoRepairReviewItem] = []
+    @Published var ocrReviewItems: [OCRReviewItem] = []
     @Published var autoRepairedCellKeys: Set<String> = []
     @Published var reviewCellKeys: Set<String> = []
     @Published var invalidWordCellKeys: Set<String> = []
@@ -117,6 +133,7 @@ final class AppState: ObservableObject {
             correctionsText = ""
             autoRepairStatus = ""
             autoRepairItems = []
+            ocrReviewItems = []
             autoRepairedCellKeys = []
             invalidWordCellKeys = []
             invalidBoardWords = []
@@ -152,6 +169,7 @@ final class AppState: ObservableObject {
             detectedTileCount = 0
             autoRepairStatus = ""
             autoRepairItems = []
+            ocrReviewItems = []
             autoRepairedCellKeys = []
             reviewCellKeys = []
             invalidWordCellKeys = []
@@ -171,6 +189,7 @@ final class AppState: ObservableObject {
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
             autoRepairStatus = ""
             autoRepairItems = []
+            ocrReviewItems = []
             autoRepairedCellKeys = []
             reviewCellKeys = []
             invalidWordCellKeys = []
@@ -247,6 +266,7 @@ final class AppState: ObservableObject {
         detectedTileCount = 0
         autoRepairStatus = ""
         autoRepairItems = []
+        ocrReviewItems = []
         autoRepairedCellKeys = []
         reviewCellKeys = []
         invalidWordCellKeys = []
@@ -429,33 +449,26 @@ final class AppState: ObservableObject {
 
     private func refreshReviewCells() {
         let repairedKeys = autoRepairedCellKeys
-        let cellsToReview = lastCellReads
-            .filter { cell in
-                let key = Self.cellKey(row: cell.row, column: cell.column)
-                guard !repairedKeys.contains(key) else { return false }
-
-                if cell.letter == nil {
-                    return !cell.candidates.isEmpty
-                }
-
-                if cell.confidence < 0.58 {
-                    return true
-                }
-
-                guard cell.candidates.count >= 2 else {
-                    return false
-                }
-
-                let top = 1 - cell.candidates[0].distance
-                let second = 1 - cell.candidates[1].distance
-                return top - second < 0.06 && cell.confidence < 0.82
-            }
-            .sorted {
-                if $0.row != $1.row { return $0.row < $1.row }
-                return $0.column < $1.column
-            }
+        let cellsToReview = BoardReadDiagnostics.reviewCells(
+            in: lastCellReads,
+            letterValues: letterValues,
+            ignoringCellKeys: repairedKeys
+        )
 
         reviewCellKeys = Set(cellsToReview.map { Self.cellKey(row: $0.row, column: $0.column) })
+        ocrReviewItems = cellsToReview.map { cell in
+            OCRReviewItem(
+                row: cell.row,
+                column: cell.column,
+                coordinate: coordinate(cell.row, cell.column),
+                letter: cell.letter,
+                confidence: cell.confidence,
+                candidates: cell.candidates,
+                detectedScoreDigit: cell.detectedScoreDigit,
+                reason: reviewReason(for: cell)
+            )
+        }
+
         guard !cellsToReview.isEmpty else {
             reviewStatus = ""
             return
@@ -465,10 +478,7 @@ final class AppState: ObservableObject {
             .prefix(10)
             .map { cell -> String in
                 let letter = cell.letter.map(String.init) ?? "."
-                let candidates = cell.candidates
-                    .prefix(3)
-                    .map { String($0.letter) }
-                    .joined(separator: "/")
+                let candidates = cell.candidates.prefix(3).map(String.init).joined(separator: "/")
                 if candidates.isEmpty {
                     return "\(coordinate(cell.row, cell.column))=\(letter)"
                 }
@@ -477,6 +487,20 @@ final class AppState: ObservableObject {
             .joined(separator: ", ")
         let suffix = cellsToReview.count > 10 ? "…" : ""
         reviewStatus = "Check amber cells: \(preview)\(suffix)"
+    }
+
+    private func reviewReason(for cell: CellReview) -> String {
+        switch cell.reason {
+        case .scoreDigitMismatch(let detected, let expected):
+            let letter = cell.letter.map(String.init) ?? "."
+            return "value \(detected), \(letter)=\(expected)"
+        case .possibleMissedTile:
+            return "possible missed tile"
+        case .lowConfidence:
+            return "low confidence \(Self.percent(cell.confidence))"
+        case .closeCandidates:
+            return "close candidates"
+        }
     }
 
     private func refreshBoardValidation() {
@@ -561,6 +585,10 @@ final class AppState: ObservableObject {
         totalSeconds: TimeInterval
     ) -> String {
         "photo \(formatDurationSeconds(importSeconds)) · OCR \(formatDurationSeconds(ocrSeconds)) · validation \(formatDurationSeconds(validationSeconds)) · total \(formatDurationSeconds(totalSeconds))"
+    }
+
+    private static func percent(_ value: Double) -> String {
+        "\(Int((value * 100).rounded()))%"
     }
 }
 

@@ -64,11 +64,11 @@ struct OCRFixtureTests {
     @Test(
         "reads representative real board words",
         arguments: [
-            FixtureExpectation(fileName: "board-real-7273.jpg", minimumOccupiedCells: 70, expectedWords: ["PAT", "URODNY", "RADA"], parityGapWords: ["STYPA"]),
+            FixtureExpectation(fileName: "board-real-7273.jpg", minimumOccupiedCells: 70, expectedWords: ["PAT", "STYPA", "URODNY", "RADA"]),
             FixtureExpectation(fileName: "board-real-7295.jpg", minimumOccupiedCells: 55, expectedWords: ["GODY", "DONGA", "PANIE", "ANIMĄ", "SROCZYMI"]),
-            FixtureExpectation(fileName: "board-real-7330.jpg", minimumOccupiedCells: 50, expectedWords: ["TURA", "DLAŃ"], parityGapWords: ["TEGO", "BLATY", "SERIA"]),
-            FixtureExpectation(fileName: "board-real-7331.jpg", minimumOccupiedCells: 60, expectedWords: ["ACHOLIA", "REJ"], parityGapWords: ["SZKOLONY"]),
-            FixtureExpectation(fileName: "board-real-7367.jpg", minimumOccupiedCells: 30, expectedWords: ["CERO", "DOZA", "DMIJ"], parityGapWords: ["STAZIE"])
+            FixtureExpectation(fileName: "board-real-7330.jpg", minimumOccupiedCells: 50, expectedWords: ["TURA", "DLAŃ", "TEGO", "BLATY", "SERIA"]),
+            FixtureExpectation(fileName: "board-real-7331.jpg", minimumOccupiedCells: 60, expectedWords: ["ACHOLIA", "REJ", "SZKOLONY"]),
+            FixtureExpectation(fileName: "board-real-7367.jpg", minimumOccupiedCells: 30, expectedWords: ["CERO", "DOZA", "STAZIE", "DMIJ"])
         ]
     )
     private func readsRepresentativeRealBoardWords(expectation: FixtureExpectation) async throws {
@@ -86,11 +86,11 @@ struct OCRFixtureTests {
     @Test(
         "documents remaining OCR parity gaps",
         arguments: [
-            FixtureExpectation(fileName: "board-real-7273.jpg", minimumOccupiedCells: 70, expectedWords: [], parityGapWords: ["STYPA"]),
+            FixtureExpectation(fileName: "board-real-7273.jpg", minimumOccupiedCells: 70, expectedWords: [], parityGapWords: []),
             FixtureExpectation(fileName: "board-real-7295.jpg", minimumOccupiedCells: 55, expectedWords: [], parityGapWords: []),
-            FixtureExpectation(fileName: "board-real-7330.jpg", minimumOccupiedCells: 50, expectedWords: [], parityGapWords: ["TEGO", "BLATY", "SERIA"]),
-            FixtureExpectation(fileName: "board-real-7331.jpg", minimumOccupiedCells: 60, expectedWords: [], parityGapWords: ["SZKOLONY"]),
-            FixtureExpectation(fileName: "board-real-7367.jpg", minimumOccupiedCells: 30, expectedWords: [], parityGapWords: ["STAZIE"])
+            FixtureExpectation(fileName: "board-real-7330.jpg", minimumOccupiedCells: 50, expectedWords: [], parityGapWords: []),
+            FixtureExpectation(fileName: "board-real-7331.jpg", minimumOccupiedCells: 60, expectedWords: [], parityGapWords: []),
+            FixtureExpectation(fileName: "board-real-7367.jpg", minimumOccupiedCells: 30, expectedWords: [], parityGapWords: [])
         ]
     )
     private func documentsRemainingOCRParityGaps(expectation: FixtureExpectation) async throws {
@@ -149,6 +149,16 @@ struct OCRFixtureTests {
         #expect(cell?.candidates.first?.letter == "I")
         #expect(cell?.detectedScoreDigit == 3)
         #expect(result.board[9, 3].letter == "I")
+    }
+
+    @Test func wrongScoreDigitDoesNotOverrideClearNHGlyphInRealBoard7331() async throws {
+        let result = try await readFixture("board-real-7331.jpg")
+        let cell = result.cells.first { $0.row == 6 && $0.column == 10 }
+
+        #expect(cell?.candidates.first?.letter == "N")
+        #expect(cell?.detectedScoreDigit == 3)
+        #expect(result.board[6, 10].letter == "N")
+        #expect(boardLines(result.board).contains("SZKOLONY"))
     }
 
     @Test(

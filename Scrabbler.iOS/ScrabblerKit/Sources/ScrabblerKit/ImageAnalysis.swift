@@ -210,16 +210,26 @@ public struct NativeBoardImageReader: BoardImageReading {
     private func shouldPreferGlyph(existing: CellRead, glyph: CellRead) -> Bool {
         guard let glyphLetter = glyph.letter else { return false }
         guard let existingLetter = existing.letter else { return true }
-        guard let scoreDigit = glyph.detectedScoreDigit else { return false }
-        let glyphMatchesScore = glyph.candidates.contains {
-            $0.letter == glyphLetter && $0.matchedScoreDigit == scoreDigit
-        }
-        let existingMatchesScore = glyph.candidates.contains { $0.letter == existingLetter && $0.matchedScoreDigit == scoreDigit }
+        if let scoreDigit = glyph.detectedScoreDigit {
+            let glyphMatchesScore = glyph.candidates.contains {
+                $0.letter == glyphLetter && $0.matchedScoreDigit == scoreDigit
+            }
+            let existingMatchesScore = glyph.candidates.contains { $0.letter == existingLetter && $0.matchedScoreDigit == scoreDigit }
 
-        return glyphMatchesScore &&
-            !existingMatchesScore &&
-            glyph.confidence >= 0.82 &&
-            glyph.confidence >= existing.confidence
+            if glyphMatchesScore &&
+                !existingMatchesScore &&
+                glyph.confidence >= 0.82 &&
+                glyph.confidence >= existing.confidence {
+                return true
+            }
+        }
+
+        let glyphIsTopCandidate = glyph.candidates.first?.letter == glyphLetter
+        let scoreDigitShouldDecidePair = isNhPair(existingLetter, glyphLetter) || isDobPair(existingLetter, glyphLetter)
+        return glyphIsTopCandidate &&
+            !scoreDigitShouldDecidePair &&
+            glyph.confidence >= 0.50 &&
+            glyph.confidence + 0.10 >= existing.confidence
     }
 
     private func mergeCandidates(_ first: [LetterCandidate], _ second: [LetterCandidate]) -> [LetterCandidate] {
@@ -261,6 +271,14 @@ public struct NativeBoardImageReader: BoardImageReading {
             return true
         }
         return ["DL", "TL", "DW"].contains(normalized)
+    }
+
+    private func isNhPair(_ lhs: Character, _ rhs: Character) -> Bool {
+        lhs != rhs && (lhs == "N" || lhs == "H") && (rhs == "N" || rhs == "H")
+    }
+
+    private func isDobPair(_ lhs: Character, _ rhs: Character) -> Bool {
+        lhs != rhs && (lhs == "D" || lhs == "O" || lhs == "B") && (rhs == "D" || rhs == "O" || rhs == "B")
     }
 }
 
@@ -1146,7 +1164,9 @@ private struct TileGlyphRecognizer {
             return top
         }
 
-        let threshold = isNhPair(top.letter, matched.letter) ? 0.82 : 0.88
+        guard let threshold = scoreDigitOverrideThreshold(top.letter, matched.letter) else {
+            return top
+        }
         return matched.score >= top.score * threshold ? matched : top
     }
 
@@ -1453,6 +1473,22 @@ private struct TileGlyphRecognizer {
 
     private func isNhPair(_ lhs: Character, _ rhs: Character) -> Bool {
         lhs != rhs && (lhs == "N" || lhs == "H") && (rhs == "N" || rhs == "H")
+    }
+
+    private func scoreDigitOverrideThreshold(_ lhs: Character, _ rhs: Character) -> Double? {
+        if isNhPair(lhs, rhs) {
+            return 0.82
+        }
+
+        if isDobPair(lhs, rhs) {
+            return 0.88
+        }
+
+        return nil
+    }
+
+    private func isDobPair(_ lhs: Character, _ rhs: Character) -> Bool {
+        lhs != rhs && (lhs == "D" || lhs == "O" || lhs == "B") && (rhs == "D" || rhs == "O" || rhs == "B")
     }
 
     private func isRedBadge(_ pixel: RGBPixel) -> Bool {

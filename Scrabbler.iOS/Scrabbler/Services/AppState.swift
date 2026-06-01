@@ -92,6 +92,12 @@ final class AppState: ObservableObject {
             board = result.board
             lastCellReads = result.cells
             correctionsText = ""
+            autoRepairStatus = ""
+            autoRepairedCellKeys = []
+            invalidWordCellKeys = []
+            invalidBoardWords = []
+            reviewStatus = ""
+            boardValidationStatus = ""
             refreshReviewCells()
             applyDictionaryRepairsIfPossible()
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count

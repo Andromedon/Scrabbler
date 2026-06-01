@@ -152,6 +152,31 @@ struct OCRFixtureTests {
     }
 
     @Test(
+        "repairs dictionary-backed fixture gaps together",
+        arguments: [
+            ("board-real-7273.jpg", ["STYPA"]),
+            ("board-real-7295.jpg", ["ANIMĄ", "SROCZYMI"]),
+            ("board-real-7330.jpg", ["DLAŃ", "TEGO", "BLATY", "SERIA"]),
+            ("board-real-7331.jpg", ["REJ"]),
+            ("board-real-7367.jpg", ["STAZIE", "DMIJ"])
+        ]
+    )
+    private func repairsDictionaryBackedFixtureGapsTogether(fileName: String, expectedWords: [String]) async throws {
+        let result = try await readFixture(fileName)
+        let dictionaryWords = Set(expectedWords.flatMap(dictionaryWords(for:)))
+
+        let repaired = DictionaryBoardRepairer(
+            dictionary: PolishWordDictionary.fromWords(Array(dictionaryWords)),
+            letterValues: try BundledDataLoader.loadLetterValues()
+        ).repair(result)
+        let repairedWords = Set(boardLines(repaired.board))
+
+        for expectedWord in expectedWords {
+            #expect(repairedWords.contains(expectedWord), "\(fileName) missing repaired word \(expectedWord); repaired words: \(repairedWords.sorted())")
+        }
+    }
+
+    @Test(
         "repairs dictionary-backed parity gaps",
         arguments: [
             ("board-real-7273.jpg", "STYPA"),

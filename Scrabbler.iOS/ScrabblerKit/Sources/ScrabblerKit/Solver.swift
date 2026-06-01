@@ -31,14 +31,16 @@ public protocol MoveSolving: Sendable {
 public final class MoveSolver: MoveSolving, @unchecked Sendable {
     public static let rackBingoBonus = 25
     private static let directions: [Direction] = [.horizontal, .vertical]
-    private static let alphabetIndexes = Dictionary(uniqueKeysWithValues: PolishAlphabet.letters.enumerated().map { ($0.element, $0.offset) })
+    fileprivate static let alphabetIndexes = Dictionary(uniqueKeysWithValues: PolishAlphabet.letters.enumerated().map { ($0.element, $0.offset) })
 
     private let dictionary: WordDictionary
     private let letterValues: [Character: Int]
+    private let wordEntriesByLength: [Int: [SolverWord]]
 
     public init(dictionary: WordDictionary, letterValues: [Character: Int]) {
         self.dictionary = dictionary
         self.letterValues = letterValues
+        self.wordEntriesByLength = Self.buildWordEntriesByLength(dictionary.wordsByLength)
     }
 
     public func findBestMoves(board: Board, rack: Rack, limit: Int) throws -> [Move] {
@@ -47,17 +49,17 @@ public final class MoveSolver: MoveSolving, @unchecked Sendable {
         let context = SolverContext(board: board, rack: rack)
         var bestMoves: [Move] = []
 
-        for (length, words) in dictionary.wordsByLength where length <= Board.size {
-            for word in words {
-                if !couldBeMadeFromRackAndBoard(word, rackLetters: context.rackLetterCounts, blankCount: rack.blankCount, boardLetters: context.boardLetterCounts) {
+        for (length, entries) in wordEntriesByLength where length <= Board.size {
+            for entry in entries {
+                if !couldBeMadeFromRackAndBoard(entry, rackLetters: context.rackLetterCounts, blankCount: rack.blankCount, boardLetters: context.boardLetterCounts) {
                     continue
                 }
 
                 for direction in Self.directions {
-                    let maxStart = Board.size - word.count
+                    let maxStart = Board.size - entry.length
                     for fixedAxis in 0..<Board.size {
                         for start in 0...maxStart {
-                            if let move = try tryBuildMove(context: context, word: word, direction: direction, fixedAxis: fixedAxis, start: start) {
+                            if let move = try tryBuildMove(context: context, word: entry, direction: direction, fixedAxis: fixedAxis, start: start) {
                                 insertCandidate(move, into: &bestMoves, limit: limit)
                             }
                         }
@@ -82,16 +84,10 @@ public final class MoveSolver: MoveSolving, @unchecked Sendable {
         }
     }
 
-    private func couldBeMadeFromRackAndBoard(_ word: String, rackLetters: [Int], blankCount: Int, boardLetters: [Int]) -> Bool {
-        var wordCounts = Array(repeating: 0, count: Self.alphabetIndexes.count)
-        for letter in word {
-            guard let index = Self.alphabetIndexes[letter] else { return false }
-            wordCounts[index] += 1
-        }
-
+    private func couldBeMadeFromRackAndBoard(_ word: SolverWord, rackLetters: [Int], blankCount: Int, boardLetters: [Int]) -> Bool {
         var blanksNeeded = 0
-        for index in wordCounts.indices {
-            let missing = wordCounts[index] - rackLetters[index] - boardLetters[index]
+        for index in word.letterCounts.indices {
+            let missing = word.letterCounts[index] - rackLetters[index] - boardLetters[index]
             if missing > 0 {
                 blanksNeeded += missing
                 if blanksNeeded > blankCount {
@@ -102,10 +98,10 @@ public final class MoveSolver: MoveSolving, @unchecked Sendable {
         return true
     }
 
-    private func tryBuildMove(context: SolverContext, word: String, direction: Direction, fixedAxis: Int, start: Int) throws -> Move? {
+    private func tryBuildMove(context: SolverContext, word: SolverWord, direction: Direction, fixedAxis: Int, start: Int) throws -> Move? {
         let row = direction == .horizontal ? fixedAxis : start
         let column = direction == .horizontal ? start : fixedAxis
-        if hasAdjacentBeforeOrAfter(context.occupied, length: word.count, row: row, column: column, direction: direction) {
+        if hasAdjacentBeforeOrAfter(context.occupied, length: word.length, row: row, column: column, direction: direction) {
             return nil
         }
 
@@ -116,7 +112,7 @@ public final class MoveSolver: MoveSolving, @unchecked Sendable {
         var touchedNeighbor = false
         var score = 0
         var mainWordMultiplier = 1
-        let letters = Array(word)
+        let letters = word.letters
 
         for index in letters.indices {
             let coordinate = coordinate(row: row, column: column, direction: direction, offset: index)
@@ -149,7 +145,7 @@ public final class MoveSolver: MoveSolving, @unchecked Sendable {
 
         guard !placed.isEmpty else { return nil }
         if context.isBoardEmpty {
-            guard coversCenter(row: row, column: column, direction: direction, length: word.count) else { return nil }
+            guard coversCenter(row: row, column: column, direction: direction, length: word.length) else { return nil }
         } else if !touchedExisting && !touchedNeighbor {
             return nil
         }
@@ -172,7 +168,7 @@ public final class MoveSolver: MoveSolving, @unchecked Sendable {
         }
 
         return Move(
-            word: word,
+            word: word.text,
             row: row,
             column: column,
             direction: direction,
@@ -298,6 +294,37 @@ public final class MoveSolver: MoveSolving, @unchecked Sendable {
 
     private func blankTileCount(_ move: Move) -> Int {
         move.placedTiles.filter(\.isBlank).count
+    }
+
+    private static func buildWordEntriesByLength(_ wordsByLength: [Int: [String]]) -> [Int: [SolverWord]] {
+        Dictionary(uniqueKeysWithValues: wordsByLength.map { length, words in
+            (length, words.compactMap(SolverWord.init))
+        })
+    }
+}
+
+private struct SolverWord {
+    let text: String
+    let letters: [Character]
+    let letterCounts: [Int]
+
+    var length: Int {
+        letters.count
+    }
+
+    init?(_ text: String) {
+        let letters = Array(text)
+        var counts = Array(repeating: 0, count: PolishAlphabet.letters.count)
+        for letter in letters {
+            guard let index = MoveSolver.alphabetIndexes[letter] else {
+                return nil
+            }
+            counts[index] += 1
+        }
+
+        self.text = text
+        self.letters = letters
+        self.letterCounts = counts
     }
 }
 

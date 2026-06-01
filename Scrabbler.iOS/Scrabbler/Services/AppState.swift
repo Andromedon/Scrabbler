@@ -12,6 +12,19 @@ struct InvalidBoardWord: Identifiable, Equatable {
     }
 }
 
+struct AutoRepairReviewItem: Identifiable, Equatable {
+    let row: Int
+    let column: Int
+    let coordinate: String
+    let originalLetter: Character?
+    let repairedLetter: Character?
+    let reason: String
+
+    var id: String {
+        "\(row):\(column):\(originalLetter.map(String.init) ?? "."):\(repairedLetter.map(String.init) ?? ".")"
+    }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     enum Screen {
@@ -30,6 +43,7 @@ final class AppState: ObservableObject {
     @Published var detectedTileCount = 0
     @Published var boardValidationStatus = ""
     @Published var autoRepairStatus = ""
+    @Published var autoRepairItems: [AutoRepairReviewItem] = []
     @Published var autoRepairedCellKeys: Set<String> = []
     @Published var reviewCellKeys: Set<String> = []
     @Published var invalidWordCellKeys: Set<String> = []
@@ -93,6 +107,7 @@ final class AppState: ObservableObject {
             lastCellReads = result.cells
             correctionsText = ""
             autoRepairStatus = ""
+            autoRepairItems = []
             autoRepairedCellKeys = []
             invalidWordCellKeys = []
             invalidBoardWords = []
@@ -119,6 +134,7 @@ final class AppState: ObservableObject {
             lastCellReads = []
             detectedTileCount = 0
             autoRepairStatus = ""
+            autoRepairItems = []
             autoRepairedCellKeys = []
             reviewCellKeys = []
             invalidWordCellKeys = []
@@ -136,6 +152,7 @@ final class AppState: ObservableObject {
             correctionsText = ""
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
             autoRepairStatus = ""
+            autoRepairItems = []
             autoRepairedCellKeys = []
             reviewCellKeys = []
             invalidWordCellKeys = []
@@ -211,6 +228,7 @@ final class AppState: ObservableObject {
         selectedMove = nil
         detectedTileCount = 0
         autoRepairStatus = ""
+        autoRepairItems = []
         autoRepairedCellKeys = []
         reviewCellKeys = []
         invalidWordCellKeys = []
@@ -356,6 +374,21 @@ final class AppState: ObservableObject {
         board = repaired.board
         lastCellReads = repaired.cells
         autoRepairedCellKeys = Set(repaired.appliedRepairs.map { Self.cellKey(row: $0.row, column: $0.column) })
+        autoRepairItems = repaired.appliedRepairs
+            .map { repair in
+                AutoRepairReviewItem(
+                    row: repair.row,
+                    column: repair.column,
+                    coordinate: coordinate(repair.row, repair.column),
+                    originalLetter: repair.originalLetter,
+                    repairedLetter: repair.repairedLetter,
+                    reason: repair.reason
+                )
+            }
+            .sorted {
+                if $0.row != $1.row { return $0.row < $1.row }
+                return $0.column < $1.column
+            }
         autoRepairStatus = repaired.appliedRepairs
             .map { repair in
                 let from = repair.originalLetter.map(String.init) ?? "."

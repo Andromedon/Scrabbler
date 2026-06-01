@@ -20,6 +20,7 @@ struct BoardCorrectionView: View {
                 .frame(maxHeight: 520)
 
                 boardStatus
+                autoCorrectionsReview
                 invalidWordsReview
 
                 VStack(spacing: 10) {
@@ -89,12 +90,6 @@ struct BoardCorrectionView: View {
                 }
             }
 
-            if !state.autoRepairStatus.isEmpty {
-                Text("Auto-corrected: \(state.autoRepairStatus)")
-                    .font(.footnote)
-                    .foregroundStyle(.green)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
             if !state.reviewStatus.isEmpty {
                 Text(state.reviewStatus)
                     .font(.footnote)
@@ -110,6 +105,56 @@ struct BoardCorrectionView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
+    }
+
+    private var autoCorrectionsReview: some View {
+        Group {
+            if !state.autoRepairItems.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Auto-corrections", systemImage: "checkmark.circle.fill")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.green)
+
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 132), spacing: 10)],
+                        alignment: .leading,
+                        spacing: 10
+                    ) {
+                        ForEach(state.autoRepairItems) { item in
+                            Button {
+                                state.appendCorrection(row: item.row, column: item.column)
+                                correctionsFocused = true
+                            } label: {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    HStack(spacing: 8) {
+                                        Text(item.coordinate)
+                                            .font(.headline.monospacedDigit())
+                                        Spacer(minLength: 4)
+                                        Text("\(display(item.originalLetter)) → \(display(item.repairedLetter))")
+                                            .font(.headline.weight(.semibold))
+                                    }
+                                    Text(shortReason(item.reason))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(Color.green.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.green.opacity(0.55), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+            }
+        }
     }
 
     private var invalidWordsReview: some View {
@@ -154,6 +199,14 @@ struct BoardCorrectionView: View {
 
     private var warningCellKeys: Set<String> {
         state.reviewCellKeys.union(state.invalidWordCellKeys)
+    }
+
+    private func display(_ letter: Character?) -> String {
+        letter.map(String.init) ?? "."
+    }
+
+    private func shortReason(_ reason: String) -> String {
+        reason.replacingOccurrences(of: "dictionary: ", with: "")
     }
 }
 

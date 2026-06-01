@@ -40,11 +40,17 @@ struct HomeView: View {
             .padding(.horizontal)
 
             if !state.dictionaryStatus.isEmpty {
-                Text(state.dictionaryStatus)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                VStack(spacing: 4) {
+                    Text(state.dictionaryStatus)
+                    if !state.lastDictionaryLoadTiming.isEmpty {
+                        Text(state.lastDictionaryLoadTiming)
+                            .font(.caption.monospacedDigit())
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
             }
 
             if state.isBusy {

@@ -52,6 +52,7 @@ final class AppState: ObservableObject {
     @Published var isBusy = false
     @Published var status = ""
     @Published var lastBoardReadTiming = ""
+    @Published var lastDictionaryLoadTiming = ""
     @Published var lastSolveTiming = ""
     @Published var dictionaryStatus = ""
     @Published var isDictionaryReady = false
@@ -253,6 +254,7 @@ final class AppState: ObservableObject {
         reviewStatus = ""
         boardValidationStatus = ""
         lastBoardReadTiming = ""
+        lastDictionaryLoadTiming = ""
         lastCellReads = []
         screen = .home
     }
@@ -260,17 +262,20 @@ final class AppState: ObservableObject {
     private func startDictionaryLoad() {
         guard solver == nil, solverLoadTask == nil, !isDictionaryLoading else { return }
         dictionaryStatus = "Loading dictionary..."
+        lastDictionaryLoadTiming = ""
         isDictionaryLoading = true
 
         let values = letterValues
         let task = Task.detached {
+            let startedAt = Date()
             let cacheDirectory = try dictionaryCacheDirectory()
             let loaded = try BundledDataLoader.loadDictionaryWithCache(cacheDirectory: cacheDirectory)
             return SolverLoadResult(
                 dictionary: loaded.dictionary,
                 solver: MoveSolver(dictionary: loaded.dictionary, letterValues: values),
                 sourceKind: loaded.sourceKind,
-                usedCache: loaded.usedCache
+                usedCache: loaded.usedCache,
+                loadSeconds: Date().timeIntervalSince(startedAt)
             )
         }
         solverLoadTask = task
@@ -284,6 +289,7 @@ final class AppState: ObservableObject {
                 isDictionaryCacheAvailable = loaded.sourceKind == .full
                 isDictionaryLoading = false
                 dictionaryStatus = loaded.statusText
+                lastDictionaryLoadTiming = loaded.timingText
                 applyDictionaryRepairsIfPossible()
                 refreshBoardValidation()
                 solverLoadTask = nil
@@ -295,6 +301,7 @@ final class AppState: ObservableObject {
                 isDictionaryCacheAvailable = false
                 isDictionaryLoading = false
                 dictionaryStatus = "Fallback dictionary loaded"
+                lastDictionaryLoadTiming = ""
                 errorMessage = error.localizedDescription
                 solverLoadTask = nil
             }
@@ -331,6 +338,7 @@ final class AppState: ObservableObject {
 
         let values = letterValues
         let loaded = try await Task.detached {
+            let startedAt = Date()
             let cacheDirectory = try dictionaryCacheDirectory()
             guard let cached = try BundledDataLoader.loadDictionaryFromCacheIfAvailable(
                 cacheDirectory: cacheDirectory
@@ -342,7 +350,8 @@ final class AppState: ObservableObject {
                 dictionary: cached.dictionary,
                 solver: MoveSolver(dictionary: cached.dictionary, letterValues: values),
                 sourceKind: cached.sourceKind,
-                usedCache: cached.usedCache
+                usedCache: cached.usedCache,
+                loadSeconds: Date().timeIntervalSince(startedAt)
             )
         }.value
 
@@ -350,6 +359,7 @@ final class AppState: ObservableObject {
         solver = loaded.solver
         isDictionaryReady = true
         dictionaryStatus = loaded.statusText
+        lastDictionaryLoadTiming = loaded.timingText
         applyDictionaryRepairsIfPossible()
         refreshBoardValidation()
         return loaded.solver
@@ -541,7 +551,7 @@ final class AppState: ObservableObject {
         totalSeconds: TimeInterval
     ) -> String {
         let source = solverWasLive ? "solver in memory" : "solver loaded from cache"
-        return "\(source) · prepare \(formatSeconds(solverLoadSeconds)) · solve \(formatSeconds(solveSeconds)) · total \(formatSeconds(totalSeconds))"
+        return "\(source) · prepare \(formatDurationSeconds(solverLoadSeconds)) · solve \(formatDurationSeconds(solveSeconds)) · total \(formatDurationSeconds(totalSeconds))"
     }
 
     private static func boardReadTimingText(
@@ -550,16 +560,16 @@ final class AppState: ObservableObject {
         validationSeconds: TimeInterval,
         totalSeconds: TimeInterval
     ) -> String {
-        "photo \(formatSeconds(importSeconds)) · OCR \(formatSeconds(ocrSeconds)) · validation \(formatSeconds(validationSeconds)) · total \(formatSeconds(totalSeconds))"
+        "photo \(formatDurationSeconds(importSeconds)) · OCR \(formatDurationSeconds(ocrSeconds)) · validation \(formatDurationSeconds(validationSeconds)) · total \(formatDurationSeconds(totalSeconds))"
+    }
+}
+
+private func formatDurationSeconds(_ seconds: TimeInterval) -> String {
+    if seconds < 1 {
+        return "\(Int((seconds * 1_000).rounded())) ms"
     }
 
-    private static func formatSeconds(_ seconds: TimeInterval) -> String {
-        if seconds < 1 {
-            return "\(Int((seconds * 1_000).rounded())) ms"
-        }
-
-        return String(format: "%.1f s", seconds)
-    }
+    return String(format: "%.1f s", seconds)
 }
 
 private struct SolverLoadResult: Sendable {
@@ -567,6 +577,7 @@ private struct SolverLoadResult: Sendable {
     let solver: MoveSolver
     let sourceKind: DictionarySourceKind
     let usedCache: Bool
+    let loadSeconds: TimeInterval
 
     var statusText: String {
         switch (sourceKind, usedCache) {
@@ -577,6 +588,10 @@ private struct SolverLoadResult: Sendable {
         case (.sample, _):
             "Sample dictionary loaded"
         }
+    }
+
+    var timingText: String {
+        "dictionary \(formatDurationSeconds(loadSeconds))"
     }
 }
 

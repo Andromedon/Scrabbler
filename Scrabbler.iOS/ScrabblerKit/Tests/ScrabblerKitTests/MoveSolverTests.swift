@@ -138,6 +138,24 @@ struct MoveSolverTests {
         ])
     }
 
+    @Test func premiumCrossWordRankingParityVector() throws {
+        let solver = solverForWords("TOK", "KOT", "OKA", "KOSA", "OSA", "SOK", "TO", "TOS", "SA", "AS")
+        let board = parityBoardWithPremiumCross()
+
+        let moves = try solver.findBestMoves(board: board, rack: try Rack.parse("TAAS"), limit: 8)
+
+        #expect(moves.map(describeMove) == [
+            "AS@J8:V:2:AJ8,SJ9|12|OKA",
+            "SA@J7:V:2:SJ7,AJ8|12|OKA",
+            "OKA@H8:H:1:AJ8|8",
+            "AS@F9:V:2:AF9,SF10|4|AS",
+            "AS@G10:H:2:AG10,SH10|4|SA",
+            "SA@F8:V:2:SF8,AF9|4|AS",
+            "SA@F10:H:2:SF10,AG10|4|SA",
+            "AS@F9:H:1:AF9|2"
+        ])
+    }
+
     private func solverForWords(_ words: String...) -> MoveSolver {
         MoveSolver(dictionary: PolishWordDictionary.fromWords(words), letterValues: values())
     }
@@ -146,6 +164,17 @@ struct MoveSolverTests {
         var bonuses = Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size)
         bonuses[7][7] = .doubleWord
         return Board(bonuses: bonuses)
+    }
+
+    private func parityBoardWithPremiumCross() -> Board {
+        var bonuses = Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size)
+        bonuses[7][7] = .doubleWord
+        bonuses[7][9] = .doubleWord
+        return Board(bonuses: bonuses)
+            .setCell(row: 7, column: 7, letter: "O")
+            .setCell(row: 7, column: 8, letter: "K")
+            .setCell(row: 6, column: 6, letter: "T")
+            .setCell(row: 8, column: 6, letter: "S")
     }
 
     private func values() -> [Character: Int] {

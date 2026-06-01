@@ -178,6 +178,28 @@ public sealed class MoveSolverTests
             moves.Select(DescribeMove).ToArray());
     }
 
+    [Fact]
+    public void PremiumCrossWordRankingParityVector()
+    {
+        var solver = SolverForWords("TOK", "KOT", "OKA", "KOSA", "OSA", "SOK", "TO", "TOS", "SA", "AS");
+        var board = ParityBoardWithPremiumCross();
+
+        var moves = solver.FindBestMoves(board, Rack.Parse("TAAS"), 8);
+
+        Assert.Equal(
+            [
+                "AS@J8:V:2:AJ8,SJ9|12|OKA",
+                "SA@J7:V:2:SJ7,AJ8|12|OKA",
+                "OKA@H8:H:1:AJ8|8",
+                "AS@F9:V:2:AF9,SF10|4|AS",
+                "AS@G10:H:2:AG10,SH10|4|SA",
+                "SA@F8:V:2:SF8,AF9|4|AS",
+                "SA@F10:H:2:SF10,AG10|4|SA",
+                "AS@F9:H:1:AF9|2"
+            ],
+            moves.Select(DescribeMove).ToArray());
+    }
+
     private static MoveSolver SolverForWords(params string[] words)
     {
         return new MoveSolver(PolishWordDictionary.FromWords(words), Values());
@@ -188,6 +210,18 @@ public sealed class MoveSolverTests
         var bonuses = new BonusType[Board.Size, Board.Size];
         bonuses[7, 7] = BonusType.DoubleWord;
         return new Board(bonuses);
+    }
+
+    private static Board ParityBoardWithPremiumCross()
+    {
+        var bonuses = new BonusType[Board.Size, Board.Size];
+        bonuses[7, 7] = BonusType.DoubleWord;
+        bonuses[7, 9] = BonusType.DoubleWord;
+        return new Board(bonuses)
+            .SetCell(7, 7, 'O')
+            .SetCell(7, 8, 'K')
+            .SetCell(6, 6, 'T')
+            .SetCell(8, 6, 'S');
     }
 
     private static IReadOnlyDictionary<char, int> Values()

@@ -200,6 +200,35 @@ public sealed class MoveSolverTests
             moves.Select(DescribeMove).ToArray());
     }
 
+    [Fact]
+    public void RealBoardShapeRankingParityVector()
+    {
+        var solver = SolverForWords(
+            "STAZIE", "STAZIĘ", "DOZA", "CERO", "DMIJ", "ADWA", "ODA", "OŚ",
+            "STA", "TA", "ZA", "ZIE", "RA", "AS", "SA", "SI", "AD", "WA", "DA",
+            "WADA", "WAD", "DWA", "DROGA", "ROD", "RÓD", "DOM", "MIJ", "MAJ");
+        var board = RealBoardShape7367();
+
+        var moves = solver.FindBestMoves(board, Rack.Parse("STAZIE"), 12);
+
+        Assert.Equal(
+            [
+                "STAZIE@G9:H:6:SG9,TH9,AI9,ZJ9,IK9,EL9|10|TA",
+                "STAZIE@G9:V:6:SG9,TG10,AG11,ZG12,IG13,EG14|10|TA",
+                "STAZIE@F7:H:5:SF7,TG7,ZI7,IJ7,EK7|9|SA",
+                "STAZIE@H9:H:6:SH9,TI9,AJ9,ZK9,IL9,EM9|9|SA",
+                "STAZIE@G10:V:6:SG10,TG11,AG12,ZG13,IG14,EG15|9|SA",
+                "STAZIE@I10:V:6:SI10,TI11,AI12,ZI13,II14,EI15|9|AS",
+                "STAZIE@H11:H:6:SH11,TI11,AJ11,ZK11,IL11,EM11|9|AS",
+                "STA@G9:H:3:SG9,TH9,AI9|7|TA",
+                "STA@G9:V:3:SG9,TG10,AG11|7|TA",
+                "STA@D4:V:3:SD4,TD5,AD6|6|AS",
+                "STA@K4:H:3:SK4,TL4,AM4|6|SA",
+                "STA@K6:H:3:SK6,TL6,AM6|6|AS"
+            ],
+            moves.Select(DescribeMove).ToArray());
+    }
+
     private static MoveSolver SolverForWords(params string[] words)
     {
         return new MoveSolver(PolishWordDictionary.FromWords(words), Values());
@@ -224,19 +253,65 @@ public sealed class MoveSolverTests
             .SetCell(8, 6, 'S');
     }
 
+    private static Board RealBoardShape7367()
+    {
+        var bonuses = new BonusType[Board.Size, Board.Size];
+        bonuses[7, 7] = BonusType.DoubleWord;
+        bonuses[0, 8] = BonusType.TripleLetter;
+        bonuses[4, 7] = BonusType.DoubleWord;
+        bonuses[4, 9] = BonusType.DoubleLetter;
+        bonuses[9, 1] = BonusType.TripleWord;
+
+        return new Board(bonuses)
+            .SetCell(0, 5, 'C')
+            .SetCell(0, 6, 'E')
+            .SetCell(0, 7, 'R')
+            .SetCell(0, 8, 'O')
+            .SetCell(1, 8, 'Ś')
+            .SetCell(1, 9, 'R')
+            .SetCell(1, 10, 'O')
+            .SetCell(1, 11, 'D')
+            .SetCell(1, 12, 'Y')
+            .SetCell(3, 7, 'A')
+            .SetCell(4, 5, 'W')
+            .SetCell(4, 7, 'D')
+            .SetCell(4, 8, 'O')
+            .SetCell(4, 9, 'Z')
+            .SetCell(4, 10, 'A')
+            .SetCell(5, 4, 'S')
+            .SetCell(5, 7, 'W')
+            .SetCell(6, 7, 'A')
+            .SetCell(7, 5, 'A')
+            .SetCell(9, 1, 'D')
+            .SetCell(9, 2, 'M')
+            .SetCell(9, 3, 'I')
+            .SetCell(9, 4, 'J')
+            .SetCell(9, 7, 'A');
+    }
+
     private static IReadOnlyDictionary<char, int> Values()
     {
         return new Dictionary<char, int>
         {
             ['A'] = 1,
+            ['C'] = 2,
+            ['D'] = 2,
+            ['E'] = 1,
+            ['I'] = 1,
+            ['J'] = 3,
             ['K'] = 2,
             ['L'] = 2,
+            ['M'] = 2,
             ['O'] = 1,
             ['R'] = 1,
             ['S'] = 1,
             ['T'] = 2,
+            ['W'] = 1,
             ['Y'] = 2,
             ['Z'] = 1,
+            ['Ę'] = 5,
+            ['Ś'] = 5,
+            ['Ó'] = 5,
             ['Ż'] = 5
         };
     }

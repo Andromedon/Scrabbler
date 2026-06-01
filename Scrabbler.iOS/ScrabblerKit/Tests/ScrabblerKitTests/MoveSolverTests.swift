@@ -156,6 +156,32 @@ struct MoveSolverTests {
         ])
     }
 
+    @Test func realBoardShapeRankingParityVector() throws {
+        let solver = solverForWords(
+            "STAZIE", "STAZIĘ", "DOZA", "CERO", "DMIJ", "ADWA", "ODA", "OŚ",
+            "STA", "TA", "ZA", "ZIE", "RA", "AS", "SA", "SI", "AD", "WA", "DA",
+            "WADA", "WAD", "DWA", "DROGA", "ROD", "RÓD", "DOM", "MIJ", "MAJ"
+        )
+        let board = realBoardShape7367()
+
+        let moves = try solver.findBestMoves(board: board, rack: try Rack.parse("STAZIE"), limit: 12)
+
+        #expect(moves.map(describeMove) == [
+            "STAZIE@G9:H:6:SG9,TH9,AI9,ZJ9,IK9,EL9|10|TA",
+            "STAZIE@G9:V:6:SG9,TG10,AG11,ZG12,IG13,EG14|10|TA",
+            "STAZIE@F7:H:5:SF7,TG7,ZI7,IJ7,EK7|9|SA",
+            "STAZIE@H9:H:6:SH9,TI9,AJ9,ZK9,IL9,EM9|9|SA",
+            "STAZIE@G10:V:6:SG10,TG11,AG12,ZG13,IG14,EG15|9|SA",
+            "STAZIE@I10:V:6:SI10,TI11,AI12,ZI13,II14,EI15|9|AS",
+            "STAZIE@H11:H:6:SH11,TI11,AJ11,ZK11,IL11,EM11|9|AS",
+            "STA@G9:H:3:SG9,TH9,AI9|7|TA",
+            "STA@G9:V:3:SG9,TG10,AG11|7|TA",
+            "STA@D4:V:3:SD4,TD5,AD6|6|AS",
+            "STA@K4:H:3:SK4,TL4,AM4|6|SA",
+            "STA@K6:H:3:SK6,TL6,AM6|6|AS"
+        ])
+    }
+
     private func solverForWords(_ words: String...) -> MoveSolver {
         MoveSolver(dictionary: PolishWordDictionary.fromWords(words), letterValues: values())
     }
@@ -177,17 +203,62 @@ struct MoveSolverTests {
             .setCell(row: 8, column: 6, letter: "S")
     }
 
+    private func realBoardShape7367() -> Board {
+        var bonuses = Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size)
+        bonuses[7][7] = .doubleWord
+        bonuses[0][8] = .tripleLetter
+        bonuses[4][7] = .doubleWord
+        bonuses[4][9] = .doubleLetter
+        bonuses[9][1] = .tripleWord
+
+        return Board(bonuses: bonuses)
+            .setCell(row: 0, column: 5, letter: "C")
+            .setCell(row: 0, column: 6, letter: "E")
+            .setCell(row: 0, column: 7, letter: "R")
+            .setCell(row: 0, column: 8, letter: "O")
+            .setCell(row: 1, column: 8, letter: "Ś")
+            .setCell(row: 1, column: 9, letter: "R")
+            .setCell(row: 1, column: 10, letter: "O")
+            .setCell(row: 1, column: 11, letter: "D")
+            .setCell(row: 1, column: 12, letter: "Y")
+            .setCell(row: 3, column: 7, letter: "A")
+            .setCell(row: 4, column: 5, letter: "W")
+            .setCell(row: 4, column: 7, letter: "D")
+            .setCell(row: 4, column: 8, letter: "O")
+            .setCell(row: 4, column: 9, letter: "Z")
+            .setCell(row: 4, column: 10, letter: "A")
+            .setCell(row: 5, column: 4, letter: "S")
+            .setCell(row: 5, column: 7, letter: "W")
+            .setCell(row: 6, column: 7, letter: "A")
+            .setCell(row: 7, column: 5, letter: "A")
+            .setCell(row: 9, column: 1, letter: "D")
+            .setCell(row: 9, column: 2, letter: "M")
+            .setCell(row: 9, column: 3, letter: "I")
+            .setCell(row: 9, column: 4, letter: "J")
+            .setCell(row: 9, column: 7, letter: "A")
+    }
+
     private func values() -> [Character: Int] {
         [
             "A": 1,
+            "C": 2,
+            "D": 2,
+            "E": 1,
+            "I": 1,
+            "J": 3,
             "K": 2,
             "L": 2,
+            "M": 2,
             "O": 1,
             "R": 1,
             "S": 1,
             "T": 2,
+            "W": 1,
             "Y": 2,
             "Z": 1,
+            "Ę": 5,
+            "Ś": 5,
+            "Ó": 5,
             "Ż": 5
         ]
     }

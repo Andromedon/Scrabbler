@@ -243,23 +243,29 @@ struct BoardCorrectionView: View {
                         spacing: 8
                     ) {
                         ForEach(state.invalidBoardWords) { word in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(word.text)
-                                    .font(.callout.weight(.semibold))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.75)
-                                Text(word.coordinate)
-                                    .font(.caption2.weight(.medium))
-                                    .foregroundStyle(.secondary)
+                            Button {
+                                state.appendCorrections(word.coordinates)
+                                correctionsFocused = true
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(word.text)
+                                        .font(.callout.weight(.semibold))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.75)
+                                    Text("\(word.coordinate) · \(word.coordinates.count) cells")
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(Color.orange.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.orange.opacity(0.5), lineWidth: 1)
+                                )
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .background(Color.orange.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.orange.opacity(0.5), lineWidth: 1)
-                            )
+                            .buttonStyle(.plain)
                         }
                     }
                 }

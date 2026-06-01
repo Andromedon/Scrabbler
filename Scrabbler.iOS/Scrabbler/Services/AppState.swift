@@ -6,9 +6,16 @@ import ScrabblerKit
 struct InvalidBoardWord: Identifiable, Equatable {
     let text: String
     let coordinate: String
+    let coordinates: [(row: Int, column: Int)]
 
     var id: String {
         "\(coordinate):\(text)"
+    }
+
+    static func == (lhs: InvalidBoardWord, rhs: InvalidBoardWord) -> Bool {
+        lhs.text == rhs.text &&
+            lhs.coordinate == rhs.coordinate &&
+            lhs.coordinates.map { [$0.row, $0.column] } == rhs.coordinates.map { [$0.row, $0.column] }
     }
 }
 
@@ -202,11 +209,17 @@ final class AppState: ObservableObject {
     }
 
     func appendCorrection(row: Int, column: Int) {
-        let coordinate = "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)="
+        appendCorrections([(row: row, column: column)])
+    }
+
+    func appendCorrections(_ coordinates: [(row: Int, column: Int)]) {
+        let entries = coordinates.map { correctionEntry(row: $0.row, column: $0.column) }
+        guard !entries.isEmpty else { return }
+
         if correctionsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            correctionsText = coordinate
+            correctionsText = entries.joined(separator: ", ")
         } else {
-            correctionsText += ", \(coordinate)"
+            correctionsText += ", \(entries.joined(separator: ", "))"
         }
     }
 
@@ -538,7 +551,8 @@ final class AppState: ObservableObject {
             invalidBoardWords = invalidWords.map { word in
                 InvalidBoardWord(
                     text: word.text,
-                    coordinate: coordinate(word.coordinates[0].row, word.coordinates[0].column)
+                    coordinate: coordinate(word.coordinates[0].row, word.coordinates[0].column),
+                    coordinates: word.coordinates
                 )
             }
             let preview = invalidWords
@@ -552,6 +566,10 @@ final class AppState: ObservableObject {
 
     private func coordinate(_ row: Int, _ column: Int) -> String {
         "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
+    }
+
+    private func correctionEntry(row: Int, column: Int) -> String {
+        "\(coordinate(row, column))="
     }
 
     private static func cellKey(row: Int, column: Int) -> String {

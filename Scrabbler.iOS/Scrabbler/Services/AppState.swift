@@ -172,7 +172,7 @@ final class AppState: ObservableObject {
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
             refreshBoardValidation()
             let validationSeconds = Date().timeIntervalSince(validationStartedAt)
-            lastBoardReadTiming = Self.boardReadTimingText(
+            lastBoardReadTiming = StatusTextFormatter.boardReadTimingText(
                 importSeconds: importSeconds,
                 ocrSeconds: ocrSeconds,
                 validationSeconds: validationSeconds,
@@ -290,7 +290,7 @@ final class AppState: ObservableObject {
                         if lhs.score != rhs.score { return lhs.score > rhs.score }
                         return lhs.word < rhs.word
                     }
-                    lastSolveTiming = Self.solveTimingText(
+                    lastSolveTiming = StatusTextFormatter.solveTimingText(
                         solverWasLive: solverWasLive,
                         solverLoadSeconds: solverLoadSeconds,
                         solveSeconds: solveSeconds,
@@ -553,7 +553,7 @@ final class AppState: ObservableObject {
         case .possibleMissedTile:
             return "possible missed tile"
         case .lowConfidence:
-            return "low confidence \(Self.percent(cell.confidence))"
+            return "low confidence \(StatusTextFormatter.percent(cell.confidence))"
         case .closeCandidates:
             return "close candidates"
         }
@@ -649,45 +649,12 @@ final class AppState: ObservableObject {
     }
 
     private func boardValidationWaitingText() -> String {
-        if isDictionaryLoading || solverLoadTask != nil {
-            return "Loading dictionary for board validation..."
-        }
-        if isDictionaryCacheAvailable {
-            return "Board validation will run from cached dictionary."
-        }
-        return "Load Dictionary to validate board words."
+        StatusTextFormatter.boardValidationWaitingText(
+            isDictionaryLoading: isDictionaryLoading,
+            hasSolverLoadTask: solverLoadTask != nil,
+            isDictionaryCacheAvailable: isDictionaryCacheAvailable
+        )
     }
-
-    private static func solveTimingText(
-        solverWasLive: Bool,
-        solverLoadSeconds: TimeInterval,
-        solveSeconds: TimeInterval,
-        totalSeconds: TimeInterval
-    ) -> String {
-        let source = solverWasLive ? "solver in memory" : "solver loaded from cache"
-        return "\(source) · prepare \(formatDurationSeconds(solverLoadSeconds)) · solve \(formatDurationSeconds(solveSeconds)) · total \(formatDurationSeconds(totalSeconds))"
-    }
-
-    private static func boardReadTimingText(
-        importSeconds: TimeInterval,
-        ocrSeconds: TimeInterval,
-        validationSeconds: TimeInterval,
-        totalSeconds: TimeInterval
-    ) -> String {
-        "photo \(formatDurationSeconds(importSeconds)) · OCR \(formatDurationSeconds(ocrSeconds)) · validation \(formatDurationSeconds(validationSeconds)) · total \(formatDurationSeconds(totalSeconds))"
-    }
-
-    private static func percent(_ value: Double) -> String {
-        "\(Int((value * 100).rounded()))%"
-    }
-}
-
-private func formatDurationSeconds(_ seconds: TimeInterval) -> String {
-    if seconds < 1 {
-        return "\(Int((seconds * 1_000).rounded())) ms"
-    }
-
-    return String(format: "%.1f s", seconds)
 }
 
 private struct SolverLoadResult: Sendable {
@@ -709,7 +676,7 @@ private struct SolverLoadResult: Sendable {
     }
 
     var timingText: String {
-        "dictionary \(formatDurationSeconds(loadSeconds))"
+        StatusTextFormatter.dictionaryTimingText(loadSeconds: loadSeconds)
     }
 }
 

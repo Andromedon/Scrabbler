@@ -59,6 +59,12 @@ public final class MoveSolver: MoveSolving, @unchecked Sendable {
                     let maxStart = Board.size - entry.length
                     for fixedAxis in 0..<Board.size {
                         for start in 0...maxStart {
+                            let row = direction == .horizontal ? fixedAxis : start
+                            let column = direction == .horizontal ? start : fixedAxis
+                            if !context.segmentCanConnect(length: entry.length, row: row, column: column, direction: direction) {
+                                continue
+                            }
+
                             if let move = try tryBuildMove(context: context, word: entry, direction: direction, fixedAxis: fixedAxis, start: start) {
                                 insertCandidate(move, into: &bestMoves, limit: limit)
                             }
@@ -392,5 +398,31 @@ private struct SolverContext {
 
     private static func isOccupied(_ occupied: [[Bool]], row: Int, column: Int) -> Bool {
         Board.isInside(row: row, column: column) && occupied[row][column]
+    }
+
+    func segmentCanConnect(length: Int, row: Int, column: Int, direction: Direction) -> Bool {
+        if isBoardEmpty {
+            return segmentCoversCenter(length: length, row: row, column: column, direction: direction)
+        }
+
+        for offset in 0..<length {
+            let currentRow = direction == .horizontal ? row : row + offset
+            let currentColumn = direction == .horizontal ? column + offset : column
+            if occupied[currentRow][currentColumn] || hasNeighbor[currentRow][currentColumn] {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func segmentCoversCenter(length: Int, row: Int, column: Int, direction: Direction) -> Bool {
+        for offset in 0..<length {
+            let currentRow = direction == .horizontal ? row : row + offset
+            let currentColumn = direction == .horizontal ? column + offset : column
+            if currentRow == 7 && currentColumn == 7 {
+                return true
+            }
+        }
+        return false
     }
 }

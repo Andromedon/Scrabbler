@@ -493,13 +493,7 @@ final class AppState: ObservableObject {
                 if $0.row != $1.row { return $0.row < $1.row }
                 return $0.column < $1.column
             }
-        autoRepairStatus = repaired.appliedRepairs
-            .map { repair in
-                let from = repair.originalLetter.map(String.init) ?? "."
-                let to = repair.repairedLetter.map(String.init) ?? "."
-                return "\(coordinate(repair.row, repair.column)) \(from)→\(to)"
-            }
-            .joined(separator: ", ")
+        autoRepairStatus = BoardReviewTextFormatter.autoRepairStatusText(repaired.appliedRepairs)
         refreshReviewCells()
     }
 
@@ -521,42 +515,11 @@ final class AppState: ObservableObject {
                 confidence: cell.confidence,
                 candidates: cell.candidates,
                 detectedScoreDigit: cell.detectedScoreDigit,
-                reason: reviewReason(for: cell)
+                reason: BoardReviewTextFormatter.reviewReasonText(for: cell)
             )
         }
 
-        guard !cellsToReview.isEmpty else {
-            reviewStatus = ""
-            return
-        }
-
-        let preview = cellsToReview
-            .prefix(10)
-            .map { cell -> String in
-                let letter = cell.letter.map(String.init) ?? "."
-                let candidates = cell.candidates.prefix(3).map(String.init).joined(separator: "/")
-                if candidates.isEmpty {
-                    return "\(coordinate(cell.row, cell.column))=\(letter)"
-                }
-                return "\(coordinate(cell.row, cell.column))=\(letter) (\(candidates))"
-            }
-            .joined(separator: ", ")
-        let suffix = cellsToReview.count > 10 ? "…" : ""
-        reviewStatus = "Check amber cells: \(preview)\(suffix)"
-    }
-
-    private func reviewReason(for cell: CellReview) -> String {
-        switch cell.reason {
-        case .scoreDigitMismatch(let detected, let expected):
-            let letter = cell.letter.map(String.init) ?? "."
-            return "value \(detected), \(letter)=\(expected)"
-        case .possibleMissedTile:
-            return "possible missed tile"
-        case .lowConfidence:
-            return "low confidence \(StatusTextFormatter.percent(cell.confidence))"
-        case .closeCandidates:
-            return "close candidates"
-        }
+        reviewStatus = BoardReviewTextFormatter.reviewStatusText(for: cellsToReview)
     }
 
     private func refreshBoardValidation() {
@@ -586,7 +549,7 @@ final class AppState: ObservableObject {
         if invalidWords.isEmpty {
             invalidWordCellKeys = []
             invalidBoardWords = []
-            boardValidationStatus = "All detected board words are in the dictionary."
+            boardValidationStatus = BoardReviewTextFormatter.invalidWordsStatusText([])
         } else {
             invalidWordCellKeys = Set(invalidWords.flatMap { word in
                 word.coordinates.map { Self.cellKey(row: $0.row, column: $0.column) }
@@ -598,12 +561,7 @@ final class AppState: ObservableObject {
                     coordinates: word.coordinates
                 )
             }
-            let preview = invalidWords
-                .prefix(8)
-                .map { "\($0.text) \(coordinate($0.coordinates[0].row, $0.coordinates[0].column))" }
-                .joined(separator: ", ")
-            let suffix = invalidWords.count > 8 ? "…" : ""
-            boardValidationStatus = "Check words: \(preview)\(suffix)"
+            boardValidationStatus = BoardReviewTextFormatter.invalidWordsStatusText(invalidWords)
         }
     }
 
@@ -635,13 +593,16 @@ final class AppState: ObservableObject {
         autoRepairItems.removeAll { item in
             correctedKeys.contains(Self.cellKey(row: item.row, column: item.column))
         }
-        autoRepairStatus = autoRepairItems
-            .map { item in
-                let from = item.originalLetter.map(String.init) ?? "."
-                let to = item.repairedLetter.map(String.init) ?? "."
-                return "\(item.coordinate) \(from)→\(to)"
-            }
-            .joined(separator: ", ")
+        let remainingRepairs = autoRepairItems.map { item in
+            BoardRepair(
+                row: item.row,
+                column: item.column,
+                originalLetter: item.originalLetter,
+                repairedLetter: item.repairedLetter,
+                reason: item.reason
+            )
+        }
+        autoRepairStatus = BoardReviewTextFormatter.autoRepairStatusText(remainingRepairs)
     }
 
     private static func cellKey(row: Int, column: Int) -> String {

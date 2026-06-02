@@ -323,11 +323,11 @@ struct BoardCorrectionView: View {
     }
 
     private func display(_ letter: Character?) -> String {
-        letter.map(String.init) ?? "."
+        BoardReviewTextFormatter.displayLetter(letter)
     }
 
     private func shortReason(_ reason: String) -> String {
-        reason.replacingOccurrences(of: "dictionary: ", with: "")
+        BoardReviewTextFormatter.shortRepairReason(reason)
     }
 }
 

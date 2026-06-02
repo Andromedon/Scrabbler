@@ -61,6 +61,14 @@ public struct BoardRepair: Equatable, Sendable {
     public let originalLetter: Character?
     public let repairedLetter: Character?
     public let reason: String
+
+    public init(row: Int, column: Int, originalLetter: Character?, repairedLetter: Character?, reason: String) {
+        self.row = row
+        self.column = column
+        self.originalLetter = originalLetter
+        self.repairedLetter = repairedLetter
+        self.reason = reason
+    }
 }
 
 public enum CellReviewReason: Equatable, Sendable {

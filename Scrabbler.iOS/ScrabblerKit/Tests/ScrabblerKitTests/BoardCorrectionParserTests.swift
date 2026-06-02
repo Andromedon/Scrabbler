@@ -32,6 +32,64 @@ struct BoardCorrectionParserTests {
         #expect(board[9, 9].letter == "Ń")
     }
 
+    @Test func formatsCorrectionEntriesAndAppendsThem() {
+        #expect(BoardCorrectionParser.correctionEntry(row: 0, column: 0) == "A1=")
+        #expect(BoardCorrectionParser.correctionEntry(row: 7, column: 7) == "H8=")
+
+        #expect(
+            BoardCorrectionParser.appendCorrectionEntries(
+                to: "",
+                coordinates: [(row: 0, column: 0), (row: 7, column: 7)]
+            ) == "A1=, H8="
+        )
+        #expect(
+            BoardCorrectionParser.appendCorrectionEntries(
+                to: "B2=A",
+                coordinates: [(row: 9, column: 9)]
+            ) == "B2=A, J10="
+        )
+        #expect(
+            BoardCorrectionParser.appendCorrectionEntries(
+                to: "B2=A",
+                coordinates: []
+            ) == "B2=A"
+        )
+    }
+
+    @Test func replacesLastMatchingCorrectionValue() {
+        #expect(
+            BoardCorrectionParser.replaceLastCorrectionValue(
+                in: "A1=Ł, H8=, A1=",
+                coordinate: "A1",
+                value: "Ń"
+            ) == "A1=Ł, H8=, A1=Ń"
+        )
+        #expect(
+            BoardCorrectionParser.replaceLastCorrectionValue(
+                in: "A1=Ł",
+                coordinate: "H8",
+                value: "."
+            ) == "A1=Ł, H8=."
+        )
+        #expect(
+            BoardCorrectionParser.replaceLastCorrectionValue(
+                in: "",
+                coordinate: "h8",
+                value: "Ż?"
+            ) == "H8=Ż?"
+        )
+    }
+
+    @Test func extractsCorrectionCellKeys() throws {
+        let keys = try BoardCorrectionParser.correctionCellKeys(from: "A1=Ł, H8=, J10=.")
+
+        #expect(keys == [
+            BoardCorrectionParser.cellKey(row: 0, column: 0),
+            BoardCorrectionParser.cellKey(row: 7, column: 7),
+            BoardCorrectionParser.cellKey(row: 9, column: 9)
+        ])
+    }
+
     @Test func rejectsInvalidCoordinate() throws {
         #expect(throws: ScrabblerError.self) {
             _ = try BoardCorrectionParser.applyCorrections(to: emptyBoard(), input: "Q1=A")

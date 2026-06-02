@@ -177,6 +177,71 @@ public enum ScrabblerError: LocalizedError, Equatable {
 }
 
 public enum BoardCorrectionParser {
+    public static func cellKey(row: Int, column: Int) -> String {
+        "\(row):\(column)"
+    }
+
+    public static func correctionEntry(row: Int, column: Int) -> String {
+        "\(BoardCoordinateFormatter.coordinate(row: row, column: column))="
+    }
+
+    public static func appendCorrectionEntries(
+        to input: String,
+        coordinates: [(row: Int, column: Int)]
+    ) -> String {
+        let entries = coordinates.map { correctionEntry(row: $0.row, column: $0.column) }
+        guard !entries.isEmpty else {
+            return input
+        }
+
+        if input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return entries.joined(separator: ", ")
+        }
+
+        return "\(input), \(entries.joined(separator: ", "))"
+    }
+
+    public static func replaceLastCorrectionValue(
+        in input: String,
+        coordinate: String,
+        value: String
+    ) -> String {
+        let normalizedCoordinate = coordinate.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let replacement = "\(normalizedCoordinate)=\(value)"
+        let parts = input
+            .split(separator: ",", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        guard !parts.isEmpty else {
+            return replacement
+        }
+
+        if let lastMatchingIndex = parts.indices.reversed().first(where: { parts[$0].hasPrefix("\(normalizedCoordinate)=") }) {
+            var updated = parts
+            updated[lastMatchingIndex] = replacement
+            return updated.filter { !$0.isEmpty }.joined(separator: ", ")
+        }
+
+        if input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return replacement
+        }
+
+        return "\(input), \(replacement)"
+    }
+
+    public static func correctionCellKeys(from input: String) throws -> Set<String> {
+        var keys: Set<String> = []
+        for item in input.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }) where !item.isEmpty {
+            let parts = item.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            guard let coordinate = parts.first else {
+                throw ScrabblerError.invalidCorrection(item)
+            }
+            let parsed = try parseCoordinate(coordinate)
+            keys.insert(cellKey(row: parsed.row, column: parsed.column))
+        }
+        return keys
+    }
+
     public static func applyCorrections(to board: Board, input: String) throws -> Board {
         guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return board

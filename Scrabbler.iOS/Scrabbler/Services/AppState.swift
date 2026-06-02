@@ -203,7 +203,7 @@ final class AppState: ObservableObject {
 
     func applyCorrections() {
         do {
-            let correctedKeys = try correctionCellKeys(from: correctionsText)
+            let correctedKeys = try BoardCorrectionParser.correctionCellKeys(from: correctionsText)
             board = try BoardCorrectionParser.applyCorrections(to: board, input: correctionsText)
             manuallyCorrectedCellKeys.formUnion(correctedKeys)
             correctionsText = ""
@@ -231,37 +231,20 @@ final class AppState: ObservableObject {
             )
         }
 
-        let entries = coordinates.map { correctionEntry(row: $0.row, column: $0.column) }
-        guard !entries.isEmpty else { return }
-
-        if correctionsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            correctionsText = entries.joined(separator: ", ")
-        } else {
-            correctionsText += ", \(entries.joined(separator: ", "))"
-        }
+        correctionsText = BoardCorrectionParser.appendCorrectionEntries(
+            to: correctionsText,
+            coordinates: coordinates
+        )
     }
 
     func setSelectedCorrectionValue(_ value: String) {
         guard let target = selectedCorrectionTarget else { return }
 
-        let replacement = "\(target.coordinate)=\(value)"
-        let parts = correctionsText
-            .split(separator: ",", omittingEmptySubsequences: false)
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-        guard !parts.isEmpty else {
-            correctionsText = replacement
-            return
-        }
-
-        if let lastMatchingIndex = parts.indices.reversed().first(where: { parts[$0].hasPrefix("\(target.coordinate)=") }) {
-            var updated = parts
-            updated[lastMatchingIndex] = replacement
-            correctionsText = updated.filter { !$0.isEmpty }.joined(separator: ", ")
-        } else if correctionsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            correctionsText = replacement
-        } else {
-            correctionsText += ", \(replacement)"
-        }
+        correctionsText = BoardCorrectionParser.replaceLastCorrectionValue(
+            in: correctionsText,
+            coordinate: target.coordinate,
+            value: value
+        )
     }
 
     func solve() {
@@ -477,7 +460,7 @@ final class AppState: ObservableObject {
 
         board = repaired.board
         lastCellReads = repaired.cells
-        autoRepairedCellKeys = Set(repaired.appliedRepairs.map { Self.cellKey(row: $0.row, column: $0.column) })
+        autoRepairedCellKeys = Set(repaired.appliedRepairs.map { cellKey(row: $0.row, column: $0.column) })
         autoRepairItems = repaired.appliedRepairs
             .map { repair in
                 AutoRepairReviewItem(
@@ -505,7 +488,7 @@ final class AppState: ObservableObject {
             ignoringCellKeys: repairedKeys
         )
 
-        reviewCellKeys = Set(cellsToReview.map { Self.cellKey(row: $0.row, column: $0.column) })
+        reviewCellKeys = Set(cellsToReview.map { cellKey(row: $0.row, column: $0.column) })
         ocrReviewItems = cellsToReview.map { cell in
             OCRReviewItem(
                 row: cell.row,
@@ -552,7 +535,7 @@ final class AppState: ObservableObject {
             boardValidationStatus = BoardReviewTextFormatter.invalidWordsStatusText([])
         } else {
             invalidWordCellKeys = Set(invalidWords.flatMap { word in
-                word.coordinates.map { Self.cellKey(row: $0.row, column: $0.column) }
+                word.coordinates.map { cellKey(row: $0.row, column: $0.column) }
             })
             invalidBoardWords = invalidWords.map { word in
                 InvalidBoardWord(
@@ -569,29 +552,12 @@ final class AppState: ObservableObject {
         BoardCoordinateFormatter.coordinate(row: row, column: column)
     }
 
-    private func correctionEntry(row: Int, column: Int) -> String {
-        "\(coordinate(row, column))="
-    }
-
-    private func correctionCellKeys(from input: String) throws -> Set<String> {
-        var keys: Set<String> = []
-        for item in input.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }) where !item.isEmpty {
-            let parts = item.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            guard let coordinate = parts.first else {
-                throw ScrabblerError.invalidCorrection(item)
-            }
-            let parsed = try BoardCorrectionParser.parseCoordinate(coordinate)
-            keys.insert(Self.cellKey(row: parsed.row, column: parsed.column))
-        }
-        return keys
-    }
-
     private func removeAutoRepairMarkers(for correctedKeys: Set<String>) {
         guard !correctedKeys.isEmpty else { return }
 
         autoRepairedCellKeys.subtract(correctedKeys)
         autoRepairItems.removeAll { item in
-            correctedKeys.contains(Self.cellKey(row: item.row, column: item.column))
+            correctedKeys.contains(cellKey(row: item.row, column: item.column))
         }
         let remainingRepairs = autoRepairItems.map { item in
             BoardRepair(
@@ -605,8 +571,8 @@ final class AppState: ObservableObject {
         autoRepairStatus = BoardReviewTextFormatter.autoRepairStatusText(remainingRepairs)
     }
 
-    private static func cellKey(row: Int, column: Int) -> String {
-        "\(row):\(column)"
+    private func cellKey(row: Int, column: Int) -> String {
+        BoardCorrectionParser.cellKey(row: row, column: column)
     }
 
     private func boardValidationWaitingText() -> String {

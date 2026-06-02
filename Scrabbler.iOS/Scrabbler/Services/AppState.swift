@@ -223,11 +223,11 @@ final class AppState: ObservableObject {
     }
 
     func appendCorrections(_ coordinates: [(row: Int, column: Int)]) {
-        if let last = coordinates.last {
+        if let first = coordinates.first {
             selectedCorrectionTarget = CorrectionTarget(
-                row: last.row,
-                column: last.column,
-                coordinate: coordinate(last.row, last.column)
+                row: first.row,
+                column: first.column,
+                coordinate: coordinate(first.row, first.column)
             )
         }
 

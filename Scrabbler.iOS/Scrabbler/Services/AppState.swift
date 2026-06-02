@@ -592,14 +592,7 @@ private struct SolverLoadResult: Sendable {
     let loadSeconds: TimeInterval
 
     var statusText: String {
-        switch (sourceKind, usedCache) {
-        case (.full, true):
-            "Full dictionary loaded from cache"
-        case (.full, false):
-            "Full dictionary loaded and cached"
-        case (.sample, _):
-            "Sample dictionary loaded"
-        }
+        StatusTextFormatter.dictionaryLoadStatusText(sourceKind: sourceKind, usedCache: usedCache)
     }
 
     var timingText: String {

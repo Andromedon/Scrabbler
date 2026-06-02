@@ -80,4 +80,17 @@ struct StatusTextFormatterTests {
         #expect(StatusTextFormatter.percent(0.734) == "73%")
         #expect(StatusTextFormatter.percent(0.735) == "74%")
     }
+
+    @Test func dictionaryButtonTitleReflectsReadinessAndCache() {
+        #expect(StatusTextFormatter.dictionaryButtonTitle(isReady: true, isCacheAvailable: true) == "Dictionary Loaded")
+        #expect(StatusTextFormatter.dictionaryButtonTitle(isReady: false, isCacheAvailable: true) == "Dictionary Cached")
+        #expect(StatusTextFormatter.dictionaryButtonTitle(isReady: false, isCacheAvailable: false) == "Load Dictionary")
+    }
+
+    @Test func dictionaryLoadStatusTextDescribesSourceAndCache() {
+        #expect(StatusTextFormatter.dictionaryLoadStatusText(sourceKind: .full, usedCache: true) == "Full dictionary loaded from cache")
+        #expect(StatusTextFormatter.dictionaryLoadStatusText(sourceKind: .full, usedCache: false) == "Full dictionary loaded and cached")
+        #expect(StatusTextFormatter.dictionaryLoadStatusText(sourceKind: .sample, usedCache: false) == "Sample dictionary loaded")
+        #expect(StatusTextFormatter.dictionaryLoadStatusText(sourceKind: .sample, usedCache: true) == "Sample dictionary loaded")
+    }
 }

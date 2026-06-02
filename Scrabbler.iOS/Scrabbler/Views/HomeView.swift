@@ -1,4 +1,5 @@
 import PhotosUI
+import ScrabblerKit
 import SwiftUI
 
 struct HomeView: View {
@@ -80,12 +81,9 @@ struct HomeView: View {
     }
 
     private var dictionaryButtonTitle: String {
-        if state.isDictionaryReady {
-            "Dictionary Loaded"
-        } else if state.isDictionaryCacheAvailable {
-            "Dictionary Cached"
-        } else {
-            "Load Dictionary"
-        }
+        StatusTextFormatter.dictionaryButtonTitle(
+            isReady: state.isDictionaryReady,
+            isCacheAvailable: state.isDictionaryCacheAvailable
+        )
     }
 }

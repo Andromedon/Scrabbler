@@ -49,4 +49,25 @@ public enum StatusTextFormatter {
     public static func dictionaryTimingText(loadSeconds: TimeInterval) -> String {
         "dictionary \(durationSeconds(loadSeconds))"
     }
+
+    public static func dictionaryButtonTitle(isReady: Bool, isCacheAvailable: Bool) -> String {
+        if isReady {
+            return "Dictionary Loaded"
+        }
+        if isCacheAvailable {
+            return "Dictionary Cached"
+        }
+        return "Load Dictionary"
+    }
+
+    public static func dictionaryLoadStatusText(sourceKind: DictionarySourceKind, usedCache: Bool) -> String {
+        switch (sourceKind, usedCache) {
+        case (.full, true):
+            return "Full dictionary loaded from cache"
+        case (.full, false):
+            return "Full dictionary loaded and cached"
+        case (.sample, _):
+            return "Sample dictionary loaded"
+        }
+    }
 }

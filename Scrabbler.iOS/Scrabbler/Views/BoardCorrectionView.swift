@@ -381,12 +381,7 @@ struct BoardGridView: View {
                                     Rectangle()
                                         .fill(fillColor(row: row, column: column, highlighted: isHighlighted, needsReview: needsReview))
                                         .border(borderColor(highlighted: isHighlighted, needsReview: needsReview), width: isHighlighted || needsReview ? 2 : 1)
-                                    Text(cellText(row: row, column: column))
-                                        .font(.system(
-                                            size: textSize(row: row, column: column, cellSize: cellSize),
-                                            weight: board[row, column].letter == nil ? .medium : .bold
-                                        ))
-                                        .foregroundStyle(textColor(row: row, column: column))
+                                    cellContent(row: row, column: column, cellSize: cellSize)
                                 }
                             }
                             .buttonStyle(.plain)
@@ -400,6 +395,30 @@ struct BoardGridView: View {
         }
         .aspectRatio(1, contentMode: .fit)
         .padding(.horizontal, 6)
+    }
+
+    @ViewBuilder
+    private func cellContent(row: Int, column: Int, cellSize: CGFloat) -> some View {
+        if let letter = board[row, column].letter {
+            Text(String(letter))
+                .font(.system(size: max(11, cellSize * 0.52), weight: .bold))
+                .foregroundStyle(.primary)
+                .minimumScaleFactor(0.65)
+        } else if let bonusText = bonusText(row: row, column: column) {
+            VStack {
+                HStack {
+                    Text(bonusText)
+                        .font(.system(size: max(5, cellSize * 0.16), weight: .semibold))
+                        .foregroundStyle(bonusTextColor(row: row, column: column))
+                        .padding(.horizontal, 2)
+                        .padding(.vertical, 1)
+                        .background(.background.opacity(0.32), in: RoundedRectangle(cornerRadius: 3))
+                    Spacer(minLength: 0)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(max(1, cellSize * 0.08))
+        }
     }
 
     private func fillColor(row: Int, column: Int, highlighted: Bool, needsReview: Bool) -> Color {
@@ -437,11 +456,7 @@ struct BoardGridView: View {
         return Color.white
     }
 
-    private func cellText(row: Int, column: Int) -> String {
-        if let letter = board[row, column].letter {
-            return String(letter)
-        }
-
+    private func bonusText(row: Int, column: Int) -> String? {
         switch board[row, column].bonus {
         case .doubleLetter:
             return "2L"
@@ -452,28 +467,20 @@ struct BoardGridView: View {
         case .tripleWord:
             return "3W"
         case .none:
-            return ""
+            return nil
         }
     }
 
-    private func textSize(row: Int, column: Int, cellSize: CGFloat) -> CGFloat {
-        board[row, column].letter == nil ? max(6, cellSize * 0.22) : max(11, cellSize * 0.52)
-    }
-
-    private func textColor(row: Int, column: Int) -> Color {
-        guard board[row, column].letter == nil else {
-            return .primary
-        }
-
+    private func bonusTextColor(row: Int, column: Int) -> Color {
         switch board[row, column].bonus {
         case .doubleLetter:
-            return Color.green.opacity(0.62)
+            return Color.green.opacity(0.76)
         case .tripleLetter:
-            return Color.blue.opacity(0.62)
+            return Color.blue.opacity(0.76)
         case .doubleWord:
-            return Color.orange.opacity(0.68)
+            return Color.orange.opacity(0.82)
         case .tripleWord:
-            return Color.red.opacity(0.64)
+            return Color.red.opacity(0.78)
         case .none:
             return .clear
         }

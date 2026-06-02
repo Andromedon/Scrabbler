@@ -25,10 +25,30 @@ public struct Move: Equatable, Sendable {
 }
 
 public enum MoveFormatter {
+    public static func directionSymbol(_ direction: Direction) -> String {
+        direction == .horizontal ? "→" : "↓"
+    }
+
+    public static func coordinateDirectionText(_ move: Move) -> String {
+        "\(BoardCoordinateFormatter.coordinate(row: move.row, column: move.column)) \(directionSymbol(move.direction))"
+    }
+
     public static func placedTilesText(_ move: Move, separator: String = ", ") -> String {
         move.placedTiles
             .map { "\($0.letter)\(BoardCoordinateFormatter.coordinate(row: $0.row, column: $0.column))\($0.isBlank ? "?" : "")" }
             .joined(separator: separator)
+    }
+
+    public static func placedTilesLabelText(_ move: Move) -> String {
+        "Placed: \(placedTilesText(move))"
+    }
+
+    public static func crossWordsText(_ move: Move, emptyText: String = "-") -> String {
+        move.crossWords.isEmpty ? emptyText : move.crossWords.joined(separator: ", ")
+    }
+
+    public static func crossWordsLabelText(_ move: Move, emptyText: String = "-") -> String {
+        "Crosses: \(crossWordsText(move, emptyText: emptyText))"
     }
 
     public static func compactDescription(_ move: Move) -> String {

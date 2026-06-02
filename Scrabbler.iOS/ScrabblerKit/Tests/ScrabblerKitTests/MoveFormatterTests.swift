@@ -26,6 +26,38 @@ struct MoveFormatterTests {
         #expect(MoveFormatter.placedTilesText(move) == "ŻG8?, AH8")
     }
 
+    @Test func formatsMoveSummaryLabels() {
+        let horizontal = Move(
+            word: "ŻAR",
+            row: 7,
+            column: 6,
+            direction: .horizontal,
+            placedTiles: [
+                PlacedTile(row: 7, column: 6, letter: "Ż", isBlank: true),
+                PlacedTile(row: 7, column: 7, letter: "A", isBlank: false)
+            ],
+            score: 4,
+            crossWords: ["ZA", "AR"]
+        )
+        let vertical = Move(
+            word: "OSA",
+            row: 5,
+            column: 9,
+            direction: .vertical,
+            placedTiles: [],
+            score: 12,
+            crossWords: []
+        )
+
+        #expect(MoveFormatter.coordinateDirectionText(horizontal) == "G8 →")
+        #expect(MoveFormatter.coordinateDirectionText(vertical) == "J6 ↓")
+        #expect(MoveFormatter.placedTilesLabelText(horizontal) == "Placed: ŻG8?, AH8")
+        #expect(MoveFormatter.crossWordsText(horizontal) == "ZA, AR")
+        #expect(MoveFormatter.crossWordsLabelText(horizontal) == "Crosses: ZA, AR")
+        #expect(MoveFormatter.crossWordsText(vertical) == "-")
+        #expect(MoveFormatter.crossWordsLabelText(vertical) == "Crosses: -")
+    }
+
     @Test func compactDescriptionIncludesBlankMarkersAndCrossWords() {
         let move = Move(
             word: "OSA",

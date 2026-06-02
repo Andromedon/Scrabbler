@@ -156,6 +156,24 @@ struct MoveSolverTests {
         ])
     }
 
+    @Test func blankTilePremiumCrossRankingParityVector() throws {
+        let solver = solverForWords("TOK", "KOT", "OKA", "KOSA", "OSA", "SOK", "TO", "TOS", "SA", "AS")
+        let board = parityBoardWithPremiumCross()
+
+        let moves = try solver.findBestMoves(board: board, rack: try Rack.parse("?AAS"), limit: 8)
+
+        #expect(moves.map(describeMove) == [
+            "AS@J8:V:2:AJ8,SJ9|12|OKA",
+            "SA@J7:V:2:SJ7,AJ8|12|OKA",
+            "OSA@J6:V:3:O?J6,SJ7,AJ8|12|OKA",
+            "OKA@H8:H:1:AJ8|8",
+            "AS@F9:V:2:AF9,SF10|4|AS",
+            "AS@G10:H:2:AG10,SH10|4|SA",
+            "SA@F8:V:2:SF8,AF9|4|AS",
+            "SA@F10:H:2:SF10,AG10|4|SA"
+        ])
+    }
+
     @Test func realBoardShapeRankingParityVector() throws {
         let solver = solverForWords(
             "STAZIE", "STAZIĘ", "DOZA", "CERO", "DMIJ", "ADWA", "ODA", "OŚ",
@@ -266,7 +284,7 @@ struct MoveSolverTests {
     private func describeMove(_ move: Move) -> String {
         let direction = move.direction == .horizontal ? "H" : "V"
         let placed = move.placedTiles
-            .map { "\($0.letter)\(coordinate($0.row, $0.column))" }
+            .map { "\($0.letter)\($0.isBlank ? "?" : "")\(coordinate($0.row, $0.column))" }
             .joined(separator: ",")
         let crossWords = move.crossWords.isEmpty ? "" : "|\(move.crossWords.joined(separator: ","))"
         return "\(move.word)@\(coordinate(move.row, move.column)):\(direction):\(move.placedTiles.count):\(placed)|\(move.score)\(crossWords)"

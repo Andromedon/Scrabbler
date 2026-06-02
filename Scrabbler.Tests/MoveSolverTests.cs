@@ -201,6 +201,28 @@ public sealed class MoveSolverTests
     }
 
     [Fact]
+    public void BlankTilePremiumCrossRankingParityVector()
+    {
+        var solver = SolverForWords("TOK", "KOT", "OKA", "KOSA", "OSA", "SOK", "TO", "TOS", "SA", "AS");
+        var board = ParityBoardWithPremiumCross();
+
+        var moves = solver.FindBestMoves(board, Rack.Parse("?AAS"), 8);
+
+        Assert.Equal(
+            [
+                "AS@J8:V:2:AJ8,SJ9|12|OKA",
+                "SA@J7:V:2:SJ7,AJ8|12|OKA",
+                "OSA@J6:V:3:O?J6,SJ7,AJ8|12|OKA",
+                "OKA@H8:H:1:AJ8|8",
+                "AS@F9:V:2:AF9,SF10|4|AS",
+                "AS@G10:H:2:AG10,SH10|4|SA",
+                "SA@F8:V:2:SF8,AF9|4|AS",
+                "SA@F10:H:2:SF10,AG10|4|SA"
+            ],
+            moves.Select(DescribeMove).ToArray());
+    }
+
+    [Fact]
     public void RealBoardShapeRankingParityVector()
     {
         var solver = SolverForWords(
@@ -335,7 +357,7 @@ public sealed class MoveSolverTests
     private static string DescribeMove(Move move)
     {
         var direction = move.Direction == Direction.Horizontal ? "H" : "V";
-        var placed = string.Join(",", move.PlacedTiles.Select(tile => $"{tile.Letter}{Coordinate(tile.Row, tile.Column)}"));
+        var placed = string.Join(",", move.PlacedTiles.Select(tile => $"{tile.Letter}{(tile.IsBlank ? "?" : "")}{Coordinate(tile.Row, tile.Column)}"));
         var crossWords = move.CrossWords.Count == 0 ? "" : "|" + string.Join(",", move.CrossWords);
         return $"{move.Word}@{Coordinate(move.Row, move.Column)}:{direction}:{move.PlacedTiles.Count}:{placed}|{move.Score}{crossWords}";
     }

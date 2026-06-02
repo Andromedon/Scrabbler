@@ -129,7 +129,7 @@ struct MoveSolverTests {
 
         let moves = try solver.findBestMoves(board: board, rack: try Rack.parse("TAAS"), limit: 5)
 
-        #expect(moves.map(describeMove) == [
+        #expect(moves.map(MoveFormatter.compactDescription) == [
             "AS@J8:V:2:AJ8,SJ9|6|OKA",
             "SA@J7:V:2:SJ7,AJ8|6|OKA",
             "OKA@H8:H:1:AJ8|4",
@@ -144,7 +144,7 @@ struct MoveSolverTests {
 
         let moves = try solver.findBestMoves(board: board, rack: try Rack.parse("TAAS"), limit: 8)
 
-        #expect(moves.map(describeMove) == [
+        #expect(moves.map(MoveFormatter.compactDescription) == [
             "AS@J8:V:2:AJ8,SJ9|12|OKA",
             "SA@J7:V:2:SJ7,AJ8|12|OKA",
             "OKA@H8:H:1:AJ8|8",
@@ -162,7 +162,7 @@ struct MoveSolverTests {
 
         let moves = try solver.findBestMoves(board: board, rack: try Rack.parse("?AAS"), limit: 8)
 
-        #expect(moves.map(describeMove) == [
+        #expect(moves.map(MoveFormatter.compactDescription) == [
             "AS@J8:V:2:AJ8,SJ9|12|OKA",
             "SA@J7:V:2:SJ7,AJ8|12|OKA",
             "OSA@J6:V:3:O?J6,SJ7,AJ8|12|OKA",
@@ -184,7 +184,7 @@ struct MoveSolverTests {
 
         let moves = try solver.findBestMoves(board: board, rack: try Rack.parse("STAZIE"), limit: 12)
 
-        #expect(moves.map(describeMove) == [
+        #expect(moves.map(MoveFormatter.compactDescription) == [
             "STAZIE@G9:H:6:SG9,TH9,AI9,ZJ9,IK9,EL9|10|TA",
             "STAZIE@G9:V:6:SG9,TG10,AG11,ZG12,IG13,EG14|10|TA",
             "STAZIE@F7:H:5:SF7,TG7,ZI7,IJ7,EK7|9|SA",
@@ -281,16 +281,4 @@ struct MoveSolverTests {
         ]
     }
 
-    private func describeMove(_ move: Move) -> String {
-        let direction = move.direction == .horizontal ? "H" : "V"
-        let placed = move.placedTiles
-            .map { "\($0.letter)\($0.isBlank ? "?" : "")\(coordinate($0.row, $0.column))" }
-            .joined(separator: ",")
-        let crossWords = move.crossWords.isEmpty ? "" : "|\(move.crossWords.joined(separator: ","))"
-        return "\(move.word)@\(coordinate(move.row, move.column)):\(direction):\(move.placedTiles.count):\(placed)|\(move.score)\(crossWords)"
-    }
-
-    private func coordinate(_ row: Int, _ column: Int) -> String {
-        "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
-    }
 }

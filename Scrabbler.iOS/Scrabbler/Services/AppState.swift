@@ -608,7 +608,7 @@ final class AppState: ObservableObject {
     }
 
     private func coordinate(_ row: Int, _ column: Int) -> String {
-        "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
+        BoardCoordinateFormatter.coordinate(row: row, column: column)
     }
 
     private func correctionEntry(row: Int, column: Int) -> String {

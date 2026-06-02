@@ -24,6 +24,30 @@ public struct Move: Equatable, Sendable {
     public let crossWords: [String]
 }
 
+public enum MoveFormatter {
+    public static func placedTilesText(_ move: Move, separator: String = ", ") -> String {
+        move.placedTiles
+            .map { "\($0.letter)\(BoardCoordinateFormatter.coordinate(row: $0.row, column: $0.column))\($0.isBlank ? "?" : "")" }
+            .joined(separator: separator)
+    }
+
+    public static func compactDescription(_ move: Move) -> String {
+        let direction = move.direction == .horizontal ? "H" : "V"
+        let placed = move.placedTiles
+            .map { "\($0.letter)\($0.isBlank ? "?" : "")\(BoardCoordinateFormatter.coordinate(row: $0.row, column: $0.column))" }
+            .joined(separator: ",")
+        let crossWords = move.crossWords.isEmpty ? "" : "|\(move.crossWords.joined(separator: ","))"
+        return "\(move.word)@\(BoardCoordinateFormatter.coordinate(row: move.row, column: move.column)):\(direction):\(move.placedTiles.count):\(placed)|\(move.score)\(crossWords)"
+    }
+
+    public static func stableID(_ move: Move) -> String {
+        let placed = move.placedTiles
+            .map { "\($0.row):\($0.column):\($0.letter):\($0.isBlank)" }
+            .joined(separator: "|")
+        return "\(move.word)-\(move.row)-\(move.column)-\(move.direction.rawValue)-\(move.score)-\(placed)"
+    }
+}
+
 public protocol MoveSolving: Sendable {
     func findBestMoves(board: Board, rack: Rack, limit: Int) throws -> [Move]
 }

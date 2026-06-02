@@ -32,6 +32,13 @@ public enum PolishAlphabet {
     }
 }
 
+public enum BoardCoordinateFormatter {
+    public static func coordinate(row: Int, column: Int) -> String {
+        precondition(Board.isInside(row: row, column: column), "Coordinate is outside the 15x15 board.")
+        return "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
+    }
+}
+
 public struct BoardCell: Equatable, Sendable {
     public let row: Int
     public let column: Int

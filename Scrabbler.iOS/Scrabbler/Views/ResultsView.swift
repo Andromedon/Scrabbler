@@ -45,11 +45,11 @@ struct ResultsView: View {
                                 Text(move.word)
                                     .font(.headline)
                                 Spacer()
-                                Text("\(coordinate(move.row, move.column)) \(move.direction == .horizontal ? "→" : "↓")")
+                                Text("\(BoardCoordinateFormatter.coordinate(row: move.row, column: move.column)) \(move.direction == .horizontal ? "→" : "↓")")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            Text("Placed: \(placedTilesText(move))")
+                            Text("Placed: \(MoveFormatter.placedTilesText(move))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
@@ -85,15 +85,6 @@ struct ResultsView: View {
         }
     }
 
-    private func coordinate(_ row: Int, _ column: Int) -> String {
-        "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
-    }
-
-    private func placedTilesText(_ move: Move) -> String {
-        move.placedTiles
-            .map { "\($0.letter)\(coordinate($0.row, $0.column))\($0.isBlank ? "?" : "")" }
-            .joined(separator: ", ")
-    }
 }
 
 private struct MoveDetailView: View {
@@ -107,12 +98,12 @@ private struct MoveDetailView: View {
                 Text(move.word)
                     .font(.headline.weight(.semibold))
                 Spacer()
-                Text("\(coordinate(move.row, move.column)) \(move.direction == .horizontal ? "→" : "↓")")
+                Text("\(BoardCoordinateFormatter.coordinate(row: move.row, column: move.column)) \(move.direction == .horizontal ? "→" : "↓")")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
             }
 
-            Text("Placed: \(placedTilesText)")
+            Text("Placed: \(MoveFormatter.placedTilesText(move))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -127,15 +118,6 @@ private struct MoveDetailView: View {
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private var placedTilesText: String {
-        move.placedTiles
-            .map { "\($0.letter)\(coordinate($0.row, $0.column))\($0.isBlank ? "?" : "")" }
-            .joined(separator: ", ")
-    }
-
-    private func coordinate(_ row: Int, _ column: Int) -> String {
-        "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
-    }
 }
 
 struct MovePreviewView: View {
@@ -161,9 +143,6 @@ struct MovePreviewView: View {
 
 private extension Move {
     var stableID: String {
-        let placed = placedTiles
-            .map { "\($0.row):\($0.column):\($0.letter):\($0.isBlank)" }
-            .joined(separator: "|")
-        return "\(word)-\(row)-\(column)-\(direction.rawValue)-\(score)-\(placed)"
+        MoveFormatter.stableID(self)
     }
 }

@@ -19,6 +19,7 @@ struct HomeView: View {
                     .padding(.vertical, 18)
             }
             .buttonStyle(.borderedProminent)
+            .disabled(state.isBusy || state.isDictionaryLoading)
             .padding(.horizontal)
 
             Button {
@@ -36,7 +37,7 @@ struct HomeView: View {
                 }
             }
             .buttonStyle(.bordered)
-            .disabled(state.isDictionaryReady || state.isDictionaryCacheAvailable || state.isDictionaryLoading)
+            .disabled(state.isDictionaryReady || state.isDictionaryCacheAvailable || state.isDictionaryLoading || state.isBusy)
             .padding(.horizontal)
 
             if !state.dictionaryStatus.isEmpty {
@@ -71,7 +72,10 @@ struct HomeView: View {
         }
         .navigationTitle("Home")
         .onChange(of: selectedPhoto) { newValue in
-            Task { await state.loadPhoto(newValue) }
+            Task {
+                await state.loadPhoto(newValue)
+                selectedPhoto = nil
+            }
         }
     }
 

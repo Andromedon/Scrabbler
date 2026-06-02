@@ -125,15 +125,7 @@ struct MovePreviewView: View {
     let move: Move
 
     var body: some View {
-        BoardGridView(board: previewBoard(), highlightedCells: highlightedCells()) { _, _ in }
-    }
-
-    private func previewBoard() -> Board {
-        var board = state.board
-        for tile in move.placedTiles {
-            board = board.setCell(row: tile.row, column: tile.column, letter: tile.letter, isBlank: tile.isBlank)
-        }
-        return board
+        BoardGridView(board: state.board.applying(move), highlightedCells: highlightedCells()) { _, _ in }
     }
 
     private func highlightedCells() -> Set<String> {

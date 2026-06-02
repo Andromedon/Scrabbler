@@ -68,6 +68,16 @@ public enum MoveFormatter {
     }
 }
 
+public extension Board {
+    func applying(_ move: Move) -> Board {
+        var board = self
+        for tile in move.placedTiles {
+            board = board.setCell(row: tile.row, column: tile.column, letter: tile.letter, isBlank: tile.isBlank)
+        }
+        return board
+    }
+}
+
 public protocol MoveSolving: Sendable {
     func findBestMoves(board: Board, rack: Rack, limit: Int) throws -> [Move]
 }

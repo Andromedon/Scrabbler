@@ -98,4 +98,32 @@ struct MoveFormatterTests {
 
         #expect(MoveFormatter.stableID(blankMove) != MoveFormatter.stableID(regularMove))
     }
+
+    @Test func boardApplyingMovePlacesOnlyMoveTiles() {
+        let bonuses = Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size)
+        let board = Board(bonuses: bonuses)
+            .setCell(row: 7, column: 7, letter: "A")
+        let move = Move(
+            word: "ŻAR",
+            row: 7,
+            column: 6,
+            direction: .horizontal,
+            placedTiles: [
+                PlacedTile(row: 7, column: 6, letter: "Ż", isBlank: true),
+                PlacedTile(row: 7, column: 8, letter: "R", isBlank: false)
+            ],
+            score: 10,
+            crossWords: []
+        )
+
+        let preview = board.applying(move)
+
+        #expect(preview[7, 6].letter == "Ż")
+        #expect(preview[7, 6].isBlank)
+        #expect(preview[7, 7].letter == "A")
+        #expect(!preview[7, 7].isBlank)
+        #expect(preview[7, 8].letter == "R")
+        #expect(!preview[7, 8].isBlank)
+        #expect(board[7, 6].letter == nil)
+    }
 }

@@ -10,6 +10,8 @@ struct ResultsView: View {
                 MovePreviewView(move: selected)
                     .environmentObject(state)
                     .frame(maxHeight: 260)
+                MoveDetailView(move: selected)
+                    .padding(.horizontal)
             }
 
             if !state.lastSolveTiming.isEmpty {
@@ -47,9 +49,16 @@ struct ResultsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            Text("Placed: \(move.placedTiles.map { "\($0.letter)\(coordinate($0.row, $0.column))" }.joined(separator: ", "))")
+                            Text("Placed: \(placedTilesText(move))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                            if !move.crossWords.isEmpty {
+                                Text("Crosses: \(move.crossWords.joined(separator: ", "))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
                         }
                     }
                     .buttonStyle(.plain)
@@ -74,6 +83,54 @@ struct ResultsView: View {
                 }
             }
         }
+    }
+
+    private func coordinate(_ row: Int, _ column: Int) -> String {
+        "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
+    }
+
+    private func placedTilesText(_ move: Move) -> String {
+        move.placedTiles
+            .map { "\($0.letter)\(coordinate($0.row, $0.column))\($0.isBlank ? "?" : "")" }
+            .joined(separator: ", ")
+    }
+}
+
+private struct MoveDetailView: View {
+    let move: Move
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Text("\(move.score)")
+                    .font(.headline.monospacedDigit())
+                Text(move.word)
+                    .font(.headline.weight(.semibold))
+                Spacer()
+                Text("\(coordinate(move.row, move.column)) \(move.direction == .horizontal ? "→" : "↓")")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Placed: \(placedTilesText)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Crosses: \(move.crossWords.isEmpty ? "-" : move.crossWords.joined(separator: ", "))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var placedTilesText: String {
+        move.placedTiles
+            .map { "\($0.letter)\(coordinate($0.row, $0.column))\($0.isBlank ? "?" : "")" }
+            .joined(separator: ", ")
     }
 
     private func coordinate(_ row: Int, _ column: Int) -> String {

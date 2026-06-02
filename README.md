@@ -77,7 +77,32 @@ swift test --package-path Scrabbler.iOS/ScrabblerKit
 xcodebuild -project Scrabbler.iOS/Scrabbler.xcodeproj -scheme Scrabbler -destination generic/platform=iOS CODE_SIGNING_ALLOWED=NO build
 ```
 
-`ScrabblerKit` currently ports the reusable board/rack/correction parser, dictionary loading, board word extraction, and exact solver/scoring behavior to Swift with XCTest-style Swift Testing coverage. The native OCR entry point is scaffolded as `NativeBoardImageReader`; the pixel recognizer and dictionary repair algorithm still need to be ported from `Scrabbler.ImageAnalysis` before the Swift app reaches full OCR parity.
+Install on a connected iPhone with:
+
+```bash
+./ScrabblerInstall.sh
+./ScrabblerInstall.sh --debug
+./ScrabblerInstall.sh --release --device 5B23B55F-73D0-5289-A601-BD2CF9A19377
+```
+
+`ScrabblerInstall.sh` defaults to a Release build, renews local provisioning unless `--use-cached-provisioning` is passed, copies the local full dictionary from `Scrabbler.ConsoleApp/Data/dictionary-pl.txt` into the native app resources when present, builds the app, and installs it with `xcrun devicectl`.
+
+`ScrabblerKit` ports the reusable board/rack/correction parser, dictionary loading and cache, board word extraction, exact solver/scoring behavior, screenshot-to-board OCR, and dictionary-assisted OCR repair to Swift. The native app flow is intentionally close to the console/MAUI flow: load a local photo, review/correct the board, enter rack letters, solve, inspect result preview, and finish back to Home.
+
+Current native status:
+
+- Local photo import is supported.
+- Google Drive is intentionally not included in the native app.
+- Dictionary loading is manual from Home; once the on-device cache exists, the button is disabled and the cached dictionary is used for validation/solving.
+- OCR repair marks automatic corrections and exposes remaining uncertain cells/invalid words for tap-to-edit review.
+- Solver parity is covered by matching C# and Swift tests, including premium squares, cross words, blanks, and the 25-point all-rack bonus.
+- OCR fixture coverage includes the all-letter sample and representative real-board screenshots under `Scrabbler.iOS/ScrabblerKit/Tests/ScrabblerKitTests/Fixtures`.
+
+Known native work still in progress:
+
+- Continue adding real-board OCR fixtures as new mistakes are found.
+- Add more app-level tests around `AppState`/SwiftUI flow if that logic is moved into a testable target.
+- Keep checking Release installs on physical iPhone when provisioning changes.
 
 ## Corrections
 

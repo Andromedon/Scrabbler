@@ -97,6 +97,7 @@ final class AppState: ObservableObject {
     private var solver: MoveSolver?
     private var solverLoadTask: Task<SolverLoadResult, Error>?
     private var lastCellReads: [CellRead] = []
+    private var manuallyCorrectedCellKeys: Set<String> = []
 
     init() {
         let loadedBonuses = (try? BundledDataLoader.loadBonusLayout()) ??
@@ -144,6 +145,7 @@ final class AppState: ObservableObject {
             let ocrSeconds = Date().timeIntervalSince(ocrStartedAt)
             board = result.board
             lastCellReads = result.cells
+            manuallyCorrectedCellKeys = []
             correctionsText = ""
             selectedCorrectionTarget = nil
             autoRepairStatus = ""
@@ -181,6 +183,7 @@ final class AppState: ObservableObject {
         } catch {
             board = Board(bonuses: bonuses)
             lastCellReads = []
+            manuallyCorrectedCellKeys = []
             selectedCorrectionTarget = nil
             detectedTileCount = 0
             autoRepairStatus = ""
@@ -200,18 +203,14 @@ final class AppState: ObservableObject {
 
     func applyCorrections() {
         do {
+            let correctedKeys = try correctionCellKeys(from: correctionsText)
             board = try BoardCorrectionParser.applyCorrections(to: board, input: correctionsText)
+            manuallyCorrectedCellKeys.formUnion(correctedKeys)
             correctionsText = ""
             selectedCorrectionTarget = nil
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
-            autoRepairStatus = ""
-            autoRepairItems = []
-            ocrReviewItems = []
-            autoRepairedCellKeys = []
-            reviewCellKeys = []
-            invalidWordCellKeys = []
-            invalidBoardWords = []
-            reviewStatus = ""
+            removeAutoRepairMarkers(for: correctedKeys)
+            refreshReviewCells()
             refreshBoardValidation()
         } catch {
             errorMessage = error.localizedDescription
@@ -332,6 +331,7 @@ final class AppState: ObservableObject {
         lastBoardReadTiming = ""
         lastDictionaryLoadTiming = ""
         lastCellReads = []
+        manuallyCorrectedCellKeys = []
         screen = .home
     }
 
@@ -504,7 +504,7 @@ final class AppState: ObservableObject {
     }
 
     private func refreshReviewCells() {
-        let repairedKeys = autoRepairedCellKeys
+        let repairedKeys = autoRepairedCellKeys.union(manuallyCorrectedCellKeys)
         let cellsToReview = BoardReadDiagnostics.reviewCells(
             in: lastCellReads,
             letterValues: letterValues,
@@ -613,6 +613,35 @@ final class AppState: ObservableObject {
 
     private func correctionEntry(row: Int, column: Int) -> String {
         "\(coordinate(row, column))="
+    }
+
+    private func correctionCellKeys(from input: String) throws -> Set<String> {
+        var keys: Set<String> = []
+        for item in input.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }) where !item.isEmpty {
+            let parts = item.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            guard let coordinate = parts.first else {
+                throw ScrabblerError.invalidCorrection(item)
+            }
+            let parsed = try BoardCorrectionParser.parseCoordinate(coordinate)
+            keys.insert(Self.cellKey(row: parsed.row, column: parsed.column))
+        }
+        return keys
+    }
+
+    private func removeAutoRepairMarkers(for correctedKeys: Set<String>) {
+        guard !correctedKeys.isEmpty else { return }
+
+        autoRepairedCellKeys.subtract(correctedKeys)
+        autoRepairItems.removeAll { item in
+            correctedKeys.contains(Self.cellKey(row: item.row, column: item.column))
+        }
+        autoRepairStatus = autoRepairItems
+            .map { item in
+                let from = item.originalLetter.map(String.init) ?? "."
+                let to = item.repairedLetter.map(String.init) ?? "."
+                return "\(item.coordinate) \(from)→\(to)"
+            }
+            .joined(separator: ", ")
     }
 
     private static func cellKey(row: Int, column: Int) -> String {

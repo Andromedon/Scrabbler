@@ -5,6 +5,21 @@ public enum BoardReviewTextFormatter {
         letter.map(String.init) ?? "."
     }
 
+    public static func bonusText(_ bonus: BonusType) -> String? {
+        switch bonus {
+        case .doubleLetter:
+            return "2L"
+        case .tripleLetter:
+            return "3L"
+        case .doubleWord:
+            return "2W"
+        case .tripleWord:
+            return "3W"
+        case .none:
+            return nil
+        }
+    }
+
     public static func autoRepairStatusText(_ repairs: [BoardRepair]) -> String {
         repairs
             .map { repair in

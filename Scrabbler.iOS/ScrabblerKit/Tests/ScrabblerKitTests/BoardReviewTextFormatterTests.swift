@@ -3,6 +3,14 @@ import Testing
 
 @Suite("Board review text formatter")
 struct BoardReviewTextFormatterTests {
+    @Test func formatsBonusText() {
+        #expect(BoardReviewTextFormatter.bonusText(.doubleLetter) == "2L")
+        #expect(BoardReviewTextFormatter.bonusText(.tripleLetter) == "3L")
+        #expect(BoardReviewTextFormatter.bonusText(.doubleWord) == "2W")
+        #expect(BoardReviewTextFormatter.bonusText(.tripleWord) == "3W")
+        #expect(BoardReviewTextFormatter.bonusText(.none) == nil)
+    }
+
     @Test func formatsAutoRepairStatusWithCoordinatesAndDots() {
         let repairs = [
             BoardRepair(row: 1, column: 7, originalLetter: nil, repairedLetter: "R", reason: "dictionary: ŚRODY"),

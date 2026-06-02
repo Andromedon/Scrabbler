@@ -457,18 +457,7 @@ struct BoardGridView: View {
     }
 
     private func bonusText(row: Int, column: Int) -> String? {
-        switch board[row, column].bonus {
-        case .doubleLetter:
-            return "2L"
-        case .tripleLetter:
-            return "3L"
-        case .doubleWord:
-            return "2W"
-        case .tripleWord:
-            return "3W"
-        case .none:
-            return nil
-        }
+        BoardReviewTextFormatter.bonusText(board[row, column].bonus)
     }
 
     private func bonusTextColor(row: Int, column: Int) -> Color {

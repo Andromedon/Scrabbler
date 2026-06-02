@@ -32,6 +32,8 @@ struct BoardCorrectionView: View {
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(1...3)
 
+                    quickCorrectionPicker
+
                     HStack {
                         Button("Apply") {
                             state.applyCorrections()
@@ -70,6 +72,47 @@ struct BoardCorrectionView: View {
                 Button("Done") {
                     correctionsFocused = false
                 }
+            }
+        }
+    }
+
+    private var quickCorrectionPicker: some View {
+        Group {
+            if let target = state.selectedCorrectionTarget {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label(target.coordinate, systemImage: "square.grid.3x3.square")
+                            .font(.footnote.weight(.semibold))
+                        Spacer()
+                        Button(".") {
+                            state.setSelectedCorrectionValue(".")
+                            correctionsFocused = true
+                        }
+                        .buttonStyle(.bordered)
+                        Button("?") {
+                            state.setSelectedCorrectionValue("?")
+                            correctionsFocused = true
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    LazyVGrid(
+                        columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 8),
+                        spacing: 6
+                    ) {
+                        ForEach(PolishAlphabet.letters.map(String.init), id: \.self) { letter in
+                            Button(letter) {
+                                state.setSelectedCorrectionValue(letter)
+                                correctionsFocused = true
+                            }
+                            .buttonStyle(.bordered)
+                            .font(.caption.weight(.semibold))
+                            .minimumScaleFactor(0.75)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
             }
         }
     }

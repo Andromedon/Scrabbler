@@ -47,6 +47,12 @@ struct OCRReviewItem: Identifiable, Equatable {
     }
 }
 
+struct CorrectionTarget: Equatable {
+    let row: Int
+    let column: Int
+    let coordinate: String
+}
+
 @MainActor
 final class AppState: ObservableObject {
     enum Screen {
@@ -59,6 +65,7 @@ final class AppState: ObservableObject {
     @Published var screen: Screen = .home
     @Published var board: Board
     @Published var correctionsText = ""
+    @Published var selectedCorrectionTarget: CorrectionTarget?
     @Published var rackText = ""
     @Published var results: [Move] = []
     @Published var selectedMove: Move?
@@ -138,6 +145,7 @@ final class AppState: ObservableObject {
             board = result.board
             lastCellReads = result.cells
             correctionsText = ""
+            selectedCorrectionTarget = nil
             autoRepairStatus = ""
             autoRepairItems = []
             ocrReviewItems = []
@@ -173,6 +181,7 @@ final class AppState: ObservableObject {
         } catch {
             board = Board(bonuses: bonuses)
             lastCellReads = []
+            selectedCorrectionTarget = nil
             detectedTileCount = 0
             autoRepairStatus = ""
             autoRepairItems = []
@@ -193,6 +202,7 @@ final class AppState: ObservableObject {
         do {
             board = try BoardCorrectionParser.applyCorrections(to: board, input: correctionsText)
             correctionsText = ""
+            selectedCorrectionTarget = nil
             detectedTileCount = board.allCells.filter { !$0.isEmpty }.count
             autoRepairStatus = ""
             autoRepairItems = []
@@ -209,10 +219,19 @@ final class AppState: ObservableObject {
     }
 
     func appendCorrection(row: Int, column: Int) {
+        selectedCorrectionTarget = CorrectionTarget(row: row, column: column, coordinate: coordinate(row, column))
         appendCorrections([(row: row, column: column)])
     }
 
     func appendCorrections(_ coordinates: [(row: Int, column: Int)]) {
+        if let last = coordinates.last {
+            selectedCorrectionTarget = CorrectionTarget(
+                row: last.row,
+                column: last.column,
+                coordinate: coordinate(last.row, last.column)
+            )
+        }
+
         let entries = coordinates.map { correctionEntry(row: $0.row, column: $0.column) }
         guard !entries.isEmpty else { return }
 
@@ -220,6 +239,29 @@ final class AppState: ObservableObject {
             correctionsText = entries.joined(separator: ", ")
         } else {
             correctionsText += ", \(entries.joined(separator: ", "))"
+        }
+    }
+
+    func setSelectedCorrectionValue(_ value: String) {
+        guard let target = selectedCorrectionTarget else { return }
+
+        let replacement = "\(target.coordinate)=\(value)"
+        let parts = correctionsText
+            .split(separator: ",", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard !parts.isEmpty else {
+            correctionsText = replacement
+            return
+        }
+
+        if let lastMatchingIndex = parts.indices.reversed().first(where: { parts[$0].hasPrefix("\(target.coordinate)=") }) {
+            var updated = parts
+            updated[lastMatchingIndex] = replacement
+            correctionsText = updated.filter { !$0.isEmpty }.joined(separator: ", ")
+        } else if correctionsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            correctionsText = replacement
+        } else {
+            correctionsText += ", \(replacement)"
         }
     }
 
@@ -273,6 +315,7 @@ final class AppState: ObservableObject {
     func finish() {
         board = Board(bonuses: bonuses)
         correctionsText = ""
+        selectedCorrectionTarget = nil
         rackText = ""
         results = []
         selectedMove = nil

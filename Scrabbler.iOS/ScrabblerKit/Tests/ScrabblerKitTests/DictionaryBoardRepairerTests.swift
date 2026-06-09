@@ -119,13 +119,29 @@ struct DictionaryBoardRepairerTests {
             .setCell(row: 7, column: 10, letter: "D")
             .setCell(row: 7, column: 11, letter: "Y")
         let result = BoardReadResult(board: board, cells: [
-            CellRead(row: 7, column: 8, letter: nil, confidence: 0)
+            latent(row: 7, column: 8, letter: "R", scoreDigit: 1)
         ])
 
         let repaired = repairer(words: "ŚRODY").repair(result)
 
         #expect(repaired.board[7, 8].letter == "R")
         #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("ŚRODY"))
+    }
+
+    @Test func refusesSingleMissedTileGapWithoutOCREvidence() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 7, letter: "Ś")
+            .setCell(row: 7, column: 9, letter: "O")
+            .setCell(row: 7, column: 10, letter: "D")
+            .setCell(row: 7, column: 11, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            CellRead(row: 7, column: 8, letter: nil, confidence: 0)
+        ])
+
+        let repaired = repairer(words: "ŚRODY").repair(result)
+
+        #expect(repaired.board[7, 8].letter == nil)
+        #expect(repaired.appliedRepairs.isEmpty)
     }
 
     @Test func dropsLowConfidenceEdgeFalsePositiveAndFillsGap() {
@@ -139,7 +155,7 @@ struct DictionaryBoardRepairerTests {
             cell(row: 1, column: 5, letter: "W", confidence: 0.50, candidates: [
                 LetterCandidate(letter: "W", distance: 0.50)
             ]),
-            CellRead(row: 1, column: 9, letter: nil, confidence: 0)
+            latent(row: 1, column: 9, letter: "I", scoreDigit: 1)
         ])
 
         let repaired = repairer(words: "MĄCIE").repair(result)
@@ -156,8 +172,8 @@ struct DictionaryBoardRepairerTests {
             .setCell(row: 7, column: 9, letter: "A")
             .setCell(row: 7, column: 11, letter: "Y")
         let result = BoardReadResult(board: board, cells: [
-            CellRead(row: 7, column: 8, letter: nil, confidence: 0),
-            CellRead(row: 7, column: 10, letter: nil, confidence: 0)
+            latent(row: 7, column: 8, letter: "L", scoreDigit: 2),
+            latent(row: 7, column: 10, letter: "T", scoreDigit: 2)
         ])
 
         let repaired = repairer(words: "BLATY").repair(result)
@@ -173,11 +189,12 @@ struct DictionaryBoardRepairerTests {
             .setCell(row: 7, column: 9, letter: "L")
             .setCell(row: 7, column: 11, letter: "Y")
         let result = BoardReadResult(board: board, cells: [
-            CellRead(row: 7, column: 8, letter: nil, confidence: 0),
-            cell(row: 7, column: 9, letter: "L", confidence: 0.30, candidates: [
-                LetterCandidate(letter: "L", distance: 0.70)
+            latent(row: 7, column: 8, letter: "L", scoreDigit: 2),
+            cell(row: 7, column: 9, letter: "L", confidence: 0.30, scoreDigit: 1, candidates: [
+                LetterCandidate(letter: "L", distance: 0.70),
+                LetterCandidate(letter: "A", distance: 0.12, matchedScoreDigit: 1)
             ]),
-            CellRead(row: 7, column: 10, letter: nil, confidence: 0)
+            latent(row: 7, column: 10, letter: "T", scoreDigit: 2)
         ])
 
         let repaired = repairer(words: "BLATY").repair(result)
@@ -209,18 +226,10 @@ struct DictionaryBoardRepairerTests {
         let board = emptyBoard()
             .setCell(row: 7, column: 10, letter: "P")
         let result = BoardReadResult(board: board, cells: [
-            CellRead(row: 7, column: 7, letter: nil, confidence: 0, candidates: [
-                LetterCandidate(letter: "S", distance: 0.09)
-            ], detectedScoreDigit: 1),
-            CellRead(row: 7, column: 8, letter: nil, confidence: 0, candidates: [
-                LetterCandidate(letter: "T", distance: 0.08)
-            ], detectedScoreDigit: 2),
-            CellRead(row: 7, column: 9, letter: nil, confidence: 0, candidates: [
-                LetterCandidate(letter: "Y", distance: 0.08)
-            ], detectedScoreDigit: 2),
-            CellRead(row: 7, column: 11, letter: nil, confidence: 0, candidates: [
-                LetterCandidate(letter: "A", distance: 0.06)
-            ], detectedScoreDigit: 1)
+            latent(row: 7, column: 7, letter: "S", scoreDigit: 1, distance: 0.09),
+            latent(row: 7, column: 8, letter: "T", scoreDigit: 2),
+            latent(row: 7, column: 9, letter: "Y", scoreDigit: 2),
+            latent(row: 7, column: 11, letter: "A", scoreDigit: 1, distance: 0.06)
         ])
 
         let repaired = repairer(words: "STYPA").repair(result)
@@ -340,8 +349,8 @@ struct DictionaryBoardRepairerTests {
             .setCell(row: 7, column: 9, letter: "A")
             .setCell(row: 7, column: 11, letter: "Y")
         let result = BoardReadResult(board: board, cells: [
-            CellRead(row: 7, column: 8, letter: nil, confidence: 0),
-            CellRead(row: 7, column: 10, letter: nil, confidence: 0)
+            latent(row: 7, column: 8, letter: "L", scoreDigit: 2),
+            latent(row: 7, column: 10, letter: "T", scoreDigit: 2)
         ])
 
         let repaired = repairer(words: "BLATY").repair(result)
@@ -361,9 +370,10 @@ struct DictionaryBoardRepairerTests {
             .setCell(row: 6, column: 9, letter: "K")
             .setCell(row: 7, column: 9, letter: "A")
         let result = BoardReadResult(board: board, cells: [
-            CellRead(row: 5, column: 9, letter: nil, confidence: 0),
-            cell(row: 5, column: 10, letter: "E", confidence: 0.30, candidates: [
-                LetterCandidate(letter: "E", distance: 0.70)
+            latent(row: 5, column: 9, letter: "E", scoreDigit: 1),
+            cell(row: 5, column: 10, letter: "E", confidence: 0.30, scoreDigit: 3, candidates: [
+                LetterCandidate(letter: "E", distance: 0.70),
+                LetterCandidate(letter: "G", distance: 0.12, matchedScoreDigit: 3)
             ])
         ])
 
@@ -395,15 +405,17 @@ struct DictionaryBoardRepairerTests {
             .setCell(row: 7, column: 9, letter: "L")
             .setCell(row: 7, column: 11, letter: "Y")
         let result = BoardReadResult(board: board, cells: [
-            CellRead(row: 5, column: 9, letter: nil, confidence: 0),
-            cell(row: 5, column: 10, letter: "E", confidence: 0.30, candidates: [
-                LetterCandidate(letter: "E", distance: 0.70)
+            latent(row: 5, column: 9, letter: "E", scoreDigit: 1),
+            cell(row: 5, column: 10, letter: "E", confidence: 0.30, scoreDigit: 3, candidates: [
+                LetterCandidate(letter: "E", distance: 0.70),
+                LetterCandidate(letter: "G", distance: 0.12, matchedScoreDigit: 3)
             ]),
-            CellRead(row: 7, column: 8, letter: nil, confidence: 0),
-            cell(row: 7, column: 9, letter: "L", confidence: 0.30, candidates: [
-                LetterCandidate(letter: "L", distance: 0.70)
+            latent(row: 7, column: 8, letter: "L", scoreDigit: 2),
+            cell(row: 7, column: 9, letter: "L", confidence: 0.30, scoreDigit: 1, candidates: [
+                LetterCandidate(letter: "L", distance: 0.70),
+                LetterCandidate(letter: "A", distance: 0.12, matchedScoreDigit: 1)
             ]),
-            CellRead(row: 7, column: 10, letter: nil, confidence: 0)
+            latent(row: 7, column: 10, letter: "T", scoreDigit: 2)
         ])
 
         let repaired = repairer(words: "TEGO", "DEKA", "LG", "BLATY", "KA", "DLAŃ", "TURA").repair(result)
@@ -439,21 +451,61 @@ struct DictionaryBoardRepairerTests {
         )
     }
 
+    private func latent(
+        row: Int,
+        column: Int,
+        letter: Character,
+        scoreDigit: Int? = nil,
+        distance: Double = 0.08
+    ) -> CellRead {
+        CellRead(
+            row: row,
+            column: column,
+            letter: nil,
+            confidence: 0,
+            candidates: [
+                LetterCandidate(letter: letter, distance: distance, matchedScoreDigit: scoreDigit)
+            ],
+            detectedScoreDigit: scoreDigit
+        )
+    }
+
     private func repairer(words: String...) -> DictionaryBoardRepairer {
         DictionaryBoardRepairer(
             dictionary: PolishWordDictionary.fromWords(words),
             letterValues: [
                 "A": 1,
+                "Ą": 5,
                 "B": 3,
                 "C": 2,
+                "Ć": 5,
                 "D": 2,
+                "E": 1,
+                "Ę": 5,
+                "F": 5,
+                "G": 3,
                 "H": 3,
+                "I": 1,
+                "J": 3,
+                "K": 2,
+                "L": 2,
+                "Ł": 3,
+                "M": 2,
                 "N": 1,
+                "Ń": 5,
                 "O": 1,
+                "Ó": 5,
                 "P": 2,
+                "R": 1,
                 "S": 1,
+                "Ś": 5,
                 "T": 2,
-                "Y": 2
+                "U": 3,
+                "W": 1,
+                "Y": 2,
+                "Z": 1,
+                "Ź": 5,
+                "Ż": 5
             ]
         )
     }

@@ -9,17 +9,23 @@ struct OCRFixtureTests {
         let minimumOccupiedCells: Int
         let expectedWords: [String]
         let parityGapWords: [String]
+        let expectedCells: [String: Character]
+        let forbiddenCells: [String]
 
         init(
             fileName: String,
             minimumOccupiedCells: Int,
             expectedWords: [String],
-            parityGapWords: [String] = []
+            parityGapWords: [String] = [],
+            expectedCells: [String: Character] = [:],
+            forbiddenCells: [String] = []
         ) {
             self.fileName = fileName
             self.minimumOccupiedCells = minimumOccupiedCells
             self.expectedWords = expectedWords
             self.parityGapWords = parityGapWords
+            self.expectedCells = expectedCells
+            self.forbiddenCells = forbiddenCells
         }
     }
 
@@ -68,20 +74,44 @@ struct OCRFixtureTests {
             FixtureExpectation(fileName: "board-real-7295.jpg", minimumOccupiedCells: 55, expectedWords: ["GODY", "DONGA", "PANIE", "ANIMĄ", "SROCZYMI"]),
             FixtureExpectation(fileName: "board-real-7330.jpg", minimumOccupiedCells: 50, expectedWords: ["TURA", "DLAŃ", "TEGO", "BLATY", "SERIA"]),
             FixtureExpectation(fileName: "board-real-7331.jpg", minimumOccupiedCells: 60, expectedWords: ["ACHOLIA", "REJ", "SZKOLONY"]),
-            FixtureExpectation(fileName: "board-real-7367.jpg", minimumOccupiedCells: 30, expectedWords: ["CERO", "DOZA", "STAZIE", "DMIJ"]),
-            FixtureExpectation(fileName: "board-real-7392.jpg", minimumOccupiedCells: 18, expectedWords: ["STANOWIŁAŚ"]),
-            FixtureExpectation(fileName: "board-real-7403.jpg", minimumOccupiedCells: 40, expectedWords: ["TRASY", "TETY", "DAGĘ", "POBROŃ", "WYRU"])
+            FixtureExpectation(
+                fileName: "board-real-7367.jpg",
+                minimumOccupiedCells: 30,
+                expectedWords: ["CERO", "DOZA", "STAZIE", "DMIJ"],
+                expectedCells: ["I2": "Ś", "J2": "R", "K2": "O", "L2": "D", "M2": "Y"]
+            ),
+            FixtureExpectation(
+                fileName: "board-real-7392.jpg",
+                minimumOccupiedCells: 18,
+                expectedWords: ["STANOWIŁAŚ"],
+                forbiddenCells: ["I7"]
+            ),
+            FixtureExpectation(
+                fileName: "board-real-7403.jpg",
+                minimumOccupiedCells: 40,
+                expectedWords: ["TRASY", "TETY", "DAGĘ", "POBROŃ", "WYRU"],
+                expectedCells: ["G2": "M", "H2": "Ą", "I2": "C", "J2": "I", "K2": "E"],
+                forbiddenCells: ["F2"]
+            )
         ]
     )
     private func readsRepresentativeRealBoardWords(expectation: FixtureExpectation) async throws {
         let result = try await readFixture(expectation.fileName)
-        dumpOCRIfRequested(fileName: expectation.fileName, result: result)
+        dumpOCRIfRequested(fileName: expectation.fileName, result: result, expectation: expectation)
         let occupied = result.cells
         let words = Set(boardLines(result.board))
 
         #expect(occupied.count >= expectation.minimumOccupiedCells)
         for expectedWord in expectation.expectedWords {
             #expect(words.contains(expectedWord), "\(expectation.fileName) missing \(expectedWord); recognized words: \(words.sorted())")
+        }
+        for (coordinate, expectedLetter) in expectation.expectedCells {
+            let parsed = try parseCoordinate(coordinate)
+            #expect(result.board[parsed.row, parsed.column].letter == expectedLetter, "\(expectation.fileName) expected \(coordinate)=\(expectedLetter), got \(result.board[parsed.row, parsed.column].letter.map(String.init) ?? ".")")
+        }
+        for coordinate in expectation.forbiddenCells {
+            let parsed = try parseCoordinate(coordinate)
+            #expect(result.board[parsed.row, parsed.column].letter == nil, "\(expectation.fileName) expected \(coordinate) to stay empty, got \(result.board[parsed.row, parsed.column].letter.map(String.init) ?? ".")")
         }
     }
 
@@ -99,7 +129,7 @@ struct OCRFixtureTests {
     )
     private func documentsRemainingOCRParityGaps(expectation: FixtureExpectation) async throws {
         let result = try await readFixture(expectation.fileName)
-        dumpOCRIfRequested(fileName: expectation.fileName, result: result)
+        dumpOCRIfRequested(fileName: expectation.fileName, result: result, expectation: expectation)
         let words = Set(boardLines(result.board))
 
         for gapWord in expectation.parityGapWords {
@@ -256,12 +286,13 @@ struct OCRFixtureTests {
         throw ScrabblerError.dictionaryNotFound(fileName)
     }
 
-    private func dumpOCRIfRequested(fileName: String, result: BoardReadResult) {
+    private func dumpOCRIfRequested(fileName: String, result: BoardReadResult, expectation: FixtureExpectation? = nil) {
         guard ProcessInfo.processInfo.environment["SCRABBLER_OCR_DEBUG"] == "1" else {
             return
         }
 
         print("OCR DEBUG \(fileName)")
+        print("SUMMARY occupied=\(result.board.allCells.filter { !$0.isEmpty }.count) reads=\(result.cells.count) repairs=\(result.appliedRepairs.count)")
         for row in 0..<Board.size {
             let line = String((0..<Board.size).map { column in
                 result.board[row, column].letter ?? "."
@@ -269,12 +300,42 @@ struct OCRFixtureTests {
             print(String(format: "%02d %@", row + 1, line))
         }
 
-        print("WORDS \(boardLines(result.board).sorted().joined(separator: ", "))")
+        let words = Set(boardLines(result.board))
+        print("WORDS \(words.sorted().joined(separator: ", "))")
+        if let expectation {
+            let missingWords = expectation.expectedWords.filter { !words.contains($0) }
+            if !missingWords.isEmpty {
+                print("MISSING WORDS \(missingWords.joined(separator: ", "))")
+            }
+
+            for (coordinate, expectedLetter) in expectation.expectedCells.sorted(by: { $0.key < $1.key }) {
+                guard let parsed = try? parseCoordinate(coordinate) else { continue }
+                let actual = result.board[parsed.row, parsed.column].letter
+                if actual != expectedLetter {
+                    print("MISSING CELL \(coordinate) expected=\(expectedLetter) actual=\(actual.map(String.init) ?? ".")")
+                }
+            }
+
+            for coordinate in expectation.forbiddenCells.sorted() {
+                guard let parsed = try? parseCoordinate(coordinate),
+                      let actual = result.board[parsed.row, parsed.column].letter else {
+                    continue
+                }
+                print("FORBIDDEN CELL \(coordinate)=\(actual)")
+            }
+        }
+        if !result.appliedRepairs.isEmpty {
+            let repairs = result.appliedRepairs.map { repair in
+                let coordinate = coordinateName(row: repair.row, column: repair.column)
+                return "\(coordinate):\(repair.originalLetter.map(String.init) ?? ".")->\(repair.repairedLetter.map(String.init) ?? ".")"
+            }
+            print("REPAIRS \(repairs.joined(separator: ", "))")
+        }
         for cell in result.cells.sorted(by: { lhs, rhs in
             if lhs.row != rhs.row { return lhs.row < rhs.row }
             return lhs.column < rhs.column
         }) {
-            let coordinate = "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(cell.column))))\(cell.row + 1)"
+            let coordinate = coordinateName(row: cell.row, column: cell.column)
             let letter = cell.letter.map(String.init) ?? "."
             let digit = cell.detectedScoreDigit.map(String.init) ?? "."
             let candidates = cell.candidates.prefix(5)
@@ -282,5 +343,21 @@ struct OCRFixtureTests {
                 .joined(separator: " ")
             print("\(coordinate)=\(letter) conf=\(String(format: "%.2f", cell.confidence)) digit=\(digit) \(candidates)")
         }
+    }
+
+    private func parseCoordinate(_ coordinate: String) throws -> (row: Int, column: Int) {
+        guard let first = coordinate.uppercased().unicodeScalars.first,
+              first.value >= UnicodeScalar("A").value,
+              first.value <= UnicodeScalar("O").value,
+              let rowNumber = Int(coordinate.dropFirst()),
+              (1...Board.size).contains(rowNumber) else {
+            throw ScrabblerError.invalidCorrection(coordinate)
+        }
+
+        return (rowNumber - 1, Int(first.value - UnicodeScalar("A").value))
+    }
+
+    private func coordinateName(row: Int, column: Int) -> String {
+        "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
     }
 }

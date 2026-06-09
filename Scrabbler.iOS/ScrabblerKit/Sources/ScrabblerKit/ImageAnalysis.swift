@@ -734,19 +734,15 @@ public struct DictionaryBoardRepairer: Sendable {
             }
 
             let expected = expectedLetters[index]
-            if missingIndices.count > 2 {
-                guard let candidate = read.candidates.first(where: { $0.letter == expected }),
-                      1 - candidate.distance >= 0.80 else {
-                    return nil
-                }
+            guard let evidence = missingCellEvidence(read, expected: expected, missingCount: missingIndices.count) else {
+                return nil
+            }
 
-                let evidence = 1 - candidate.distance
-                missingEvidenceScore += evidence
-                weakestMissingEvidence = min(weakestMissingEvidence, evidence)
-                strongMissingEvidenceCount += 1
-                if let digit = read.detectedScoreDigit, letterValues[expected] == digit {
-                    scoreDigitMatchCount += 1
-                }
+            missingEvidenceScore += evidence.score
+            weakestMissingEvidence = min(weakestMissingEvidence, evidence.score)
+            strongMissingEvidenceCount += 1
+            if evidence.scoreDigitMatches {
+                scoreDigitMatchCount += 1
             }
 
             repairedBoard = repairedBoard.setCell(row: cell.row, column: cell.column, letter: expected)
@@ -765,16 +761,14 @@ public struct DictionaryBoardRepairer: Sendable {
                 score += 0.20
             }
         }
-        if missingIndices.count > 2 {
-            guard strongMissingEvidenceCount == missingIndices.count,
-                  scoreDigitMatchCount >= requiredScoreDigitMatches(forMissingCount: missingIndices.count) ||
-                    hasVeryStrongMissingGlyphEvidence(
-                        totalScore: missingEvidenceScore,
-                        weakestScore: weakestMissingEvidence,
-                        missingCount: missingIndices.count
-                    ) else {
-                return nil
-            }
+        guard strongMissingEvidenceCount == missingIndices.count,
+              scoreDigitMatchCount >= requiredScoreDigitMatches(forMissingCount: missingIndices.count) ||
+                hasVeryStrongMissingGlyphEvidence(
+                    totalScore: missingEvidenceScore,
+                    weakestScore: weakestMissingEvidence,
+                    missingCount: missingIndices.count
+                ) else {
+            return nil
         }
 
         for index in mismatchIndices {
@@ -826,9 +820,52 @@ public struct DictionaryBoardRepairer: Sendable {
     }
 
     private func hasVeryStrongMissingGlyphEvidence(totalScore: Double, weakestScore: Double, missingCount: Int) -> Bool {
-        guard missingCount > 4 else { return false }
+        guard missingCount > 0 else { return false }
         let averageScore = totalScore / Double(missingCount)
-        return weakestScore >= 0.86 && averageScore >= 0.91
+        if missingCount == 1 {
+            return weakestScore >= 0.92
+        }
+
+        return weakestScore >= (missingCount > 4 ? 0.86 : 0.90) &&
+            averageScore >= (missingCount > 4 ? 0.91 : 0.93)
+    }
+
+    private struct MissingCellEvidence {
+        let score: Double
+        let scoreDigitMatches: Bool
+    }
+
+    private func missingCellEvidence(_ cell: CellRead, expected: Character, missingCount: Int) -> MissingCellEvidence? {
+        guard cell.letter == nil,
+              let candidate = cell.candidates.first(where: { $0.letter == expected }) else {
+            return nil
+        }
+
+        let expectedScore = max(0, 1 - candidate.distance)
+        let top = cell.candidates.first
+        let topScore = top.map { max(0, 1 - $0.distance) } ?? expectedScore
+        let expectedIsTop = top?.letter == expected
+        let scoreDigitMatches = cell.detectedScoreDigit.map { letterValues[expected] == $0 } ?? false
+
+        if scoreDigitMatches,
+           expectedScore >= (missingCount > 2 ? 0.80 : 0.78),
+           expectedIsTop || expectedScore >= topScore - 0.08 {
+            return MissingCellEvidence(score: expectedScore, scoreDigitMatches: true)
+        }
+
+        if expectedIsTop,
+           expectedScore >= (missingCount > 2 ? 0.90 : 0.88) {
+            return MissingCellEvidence(score: expectedScore, scoreDigitMatches: false)
+        }
+
+        if let top,
+           isDiacriticVariant(top.letter, expected),
+           topScore >= 0.86,
+           expectedScore >= 0.70 {
+            return MissingCellEvidence(score: min(topScore, expectedScore + 0.08), scoreDigitMatches: false)
+        }
+
+        return nil
     }
 
     private func canSubstituteLongGapMismatch(_ cell: CellRead, current: Character, expected: Character) -> Bool {
@@ -996,6 +1033,11 @@ public struct DictionaryBoardRepairer: Sendable {
             let cell = cells[index]
             let expected = expectedLetters[index]
             if cell.row == gapRow && cell.column == gapColumn {
+                guard let read = cellsByKey[Self.key(row: cell.row, column: cell.column)],
+                      let evidence = missingCellEvidence(read, expected: expected, missingCount: 1) else {
+                    return nil
+                }
+
                 repairedBoard = repairedBoard.setCell(row: cell.row, column: cell.column, letter: expected)
                 repairs.append(BoardRepair(
                     row: cell.row,
@@ -1004,7 +1046,10 @@ public struct DictionaryBoardRepairer: Sendable {
                     repairedLetter: expected,
                     reason: "dictionary: \(word)"
                 ))
-                score += 0.75
+                score += 0.35 + evidence.score
+                if evidence.scoreDigitMatches {
+                    score += 0.20
+                }
                 continue
             }
 
@@ -1272,7 +1317,21 @@ public struct DictionaryBoardRepairer: Sendable {
         guard let cell = cellsByKey[Self.key(row: row, column: column)] else {
             return false
         }
-        return cell.letter == nil
+        return hasStrongLatentTileEvidence(cell)
+    }
+
+    private func hasStrongLatentTileEvidence(_ cell: CellRead) -> Bool {
+        guard cell.letter == nil,
+              let top = cell.candidates.first else {
+            return false
+        }
+
+        let topScore = max(0, 1 - top.distance)
+        if let digit = cell.detectedScoreDigit {
+            return top.matchedScoreDigit == digit && topScore >= 0.84
+        }
+
+        return topScore >= 0.90
     }
 
     private func coordinate(line: Int, index: Int, direction: Direction) -> (row: Int, column: Int) {

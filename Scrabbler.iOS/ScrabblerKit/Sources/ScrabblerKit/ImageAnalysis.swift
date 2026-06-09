@@ -1986,12 +1986,12 @@ private final class BoardColorSampler {
 
     func cellHasLatentTileEvidence(row: Int, column: Int, bonus: BonusType) -> Bool {
         let stats = cellColorStats(row: row, column: column)
-        guard stats.orangeRatio >= 0.18 else { return false }
-        if stats.darkRatio > 0.004 { return true }
-        if bonus == .doubleWord {
-            return false
-        }
-        return stats.whiteRatio > 0.018
+        return BoardOccupancyClassifier.hasLatentTileEvidence(
+            orangeRatio: stats.orangeRatio,
+            darkRatio: stats.darkRatio,
+            whiteRatio: stats.whiteRatio,
+            bonus: bonus
+        )
     }
 
     private func cellColorStats(row: Int, column: Int) -> CellColorStats {
@@ -2095,7 +2095,27 @@ enum BoardOccupancyClassifier {
         if bonus == .doubleWord {
             return whiteRatio > 0.08
         }
+        if bonus != .none {
+            return whiteRatio > 0.045
+        }
         return whiteRatio > 0.025
+    }
+
+    static func hasLatentTileEvidence(
+        orangeRatio: Double,
+        darkRatio: Double,
+        whiteRatio: Double,
+        bonus: BonusType
+    ) -> Bool {
+        guard orangeRatio >= 0.18 else { return false }
+        if bonus != .none {
+            return orangeRatio >= 0.28 && darkRatio > 0.012
+        }
+
+        if darkRatio > 0.006 {
+            return true
+        }
+        return orangeRatio >= 0.28 && whiteRatio > 0.025
     }
 }
 

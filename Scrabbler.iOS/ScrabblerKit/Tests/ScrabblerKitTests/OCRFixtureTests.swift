@@ -178,6 +178,18 @@ struct OCRFixtureTests {
         #expect(boardLines(repaired.board).contains("MĄCIE"))
     }
 
+    @Test func redScoreBadgeDoesNotLeakIntoNearbyGlyphsInRealBoard7403() async throws {
+        let result = try await readFixture("board-real-7403.jpg")
+
+        #expect(result.board[1, 5].letter == nil)
+        #expect(result.board[1, 6].letter == "M")
+        #expect(result.board[1, 7].letter == "Ą")
+        #expect(result.board[1, 8].letter == "C")
+        #expect(result.board[1, 9].letter == "I")
+        #expect(result.board[1, 10].letter == "E")
+        #expect(boardLines(result.board).contains("MĄCIE"))
+    }
+
     @Test func scoreDigitDoesNotOverrideClearGlyphInRealBoard7367() async throws {
         let result = try await readFixture("board-real-7367.jpg")
         let cell = result.cells.first { $0.row == 9 && $0.column == 3 }

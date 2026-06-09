@@ -1530,7 +1530,9 @@ private struct TileGlyphRecognizer {
                 let sourceX = Int(bounds.minX + min(bounds.width - 1, (Double(x) + 0.5) * bounds.width / Double(Self.maskSize)))
                 guard let pixel = sampler.pixel(x: sourceX, y: sourceY), !isRedBadge(pixel) else { continue }
                 let dark = isDarkGlyph(pixel)
-                let light = pixel.red > 235 && pixel.green > 235 && pixel.blue > 235 && sampler.localOrangeBackgroundNear(x: sourceX, y: sourceY, bounds: bounds)
+                let light = isLightGlyph(pixel)
+                    && !sampler.localRedBadgeNear(x: sourceX, y: sourceY, bounds: bounds)
+                    && sampler.localOrangeBackgroundNear(x: sourceX, y: sourceY, bounds: bounds)
                 if dark || light {
                     mask[y * Self.maskSize + x] = true
                     ink += 1
@@ -1562,7 +1564,10 @@ private struct TileGlyphRecognizer {
                 let sourceY = minY + y
                 guard let pixel = sampler.pixel(x: sourceX, y: sourceY), !isRedBadge(pixel) else { continue }
                 let dark = isDarkGlyph(pixel)
-                let light = includeLight && pixel.red > 235 && pixel.green > 235 && pixel.blue > 235 && sampler.localOrangeBackgroundNear(x: sourceX, y: sourceY, bounds: bounds)
+                let light = includeLight
+                    && isLightGlyph(pixel)
+                    && !sampler.localRedBadgeNear(x: sourceX, y: sourceY, bounds: bounds)
+                    && sampler.localOrangeBackgroundNear(x: sourceX, y: sourceY, bounds: bounds)
                 values[y * width + x] = dark || light
             }
         }
@@ -1773,6 +1778,10 @@ private struct TileGlyphRecognizer {
         let maxValue = max(pixel.red, max(pixel.green, pixel.blue))
         let minValue = min(pixel.red, min(pixel.green, pixel.blue))
         return maxValue < 190 && maxValue - minValue < 90
+    }
+
+    private func isLightGlyph(_ pixel: RGBPixel) -> Bool {
+        pixel.red > 235 && pixel.green > 235 && pixel.blue > 235
     }
 
     private func average(_ values: [Int]) -> Double {
@@ -2074,6 +2083,28 @@ private final class BoardColorSampler {
             }
         }
         return false
+    }
+
+    func localRedBadgeNear(x: Int, y: Int, bounds: CGRect) -> Bool {
+        let radius = max(2, Int(min(bounds.width, bounds.height)) / 10)
+        let left = max(0, Int(bounds.minX))
+        let right = min(width - 1, Int(bounds.maxX))
+        let top = max(0, Int(bounds.minY))
+        let bottom = min(height - 1, Int(bounds.maxY))
+        var redPixels = 0
+        var sampledPixels = 0
+
+        for yy in max(top, y - radius)...min(bottom, y + radius) {
+            for xx in max(left, x - radius)...min(right, x + radius) {
+                guard let pixel = pixel(x: xx, y: yy) else { continue }
+                sampledPixels += 1
+                if isRedBadge(red: pixel.red, green: pixel.green, blue: pixel.blue) {
+                    redPixels += 1
+                }
+            }
+        }
+
+        return sampledPixels > 0 && Double(redPixels) / Double(sampledPixels) >= 0.18
     }
 }
 

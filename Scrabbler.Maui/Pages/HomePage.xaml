@@ -7,7 +7,6 @@
     <Grid Padding="24" RowDefinitions="*,Auto">
         <VerticalStackLayout Grid.Row="0" Spacing="18" VerticalOptions="Center">
             <Button Text="Load from Gallery" Command="{Binding LoadFromGalleryCommand}" HorizontalOptions="Fill" />
-            <Button Text="Download from Google Drive" Command="{Binding DownloadFromGoogleDriveCommand}" HorizontalOptions="Fill" />
             <Button Text="Load Dictionary" Command="{Binding WarmDictionaryCommand}" HorizontalOptions="Fill" />
             <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
             <Label Text="{Binding DictionaryStatus}" LineBreakMode="WordWrap" />

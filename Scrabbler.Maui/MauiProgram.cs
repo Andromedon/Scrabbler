@@ -15,8 +15,6 @@ public static class MauiProgram
         builder.Services.AddSingleton<MauiAssetService>();
         builder.Services.AddSingleton<IPhotoImportService, PhotoImportService>();
         builder.Services.AddSingleton<NavigationService>();
-        builder.Services.AddSingleton<IGoogleDriveSettingsProvider, GoogleDriveSettingsProvider>();
-        builder.Services.AddSingleton<MauiGoogleDriveClient>();
         builder.Services.AddSingleton<IBackgroundTaskService, IosBackgroundTaskService>();
         builder.Services.AddSingleton<ScrabblerWorkflowService>();
 

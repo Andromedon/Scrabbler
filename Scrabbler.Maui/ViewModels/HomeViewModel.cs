@@ -9,7 +9,6 @@ public sealed class HomeViewModel : ObservableObject
 {
     private readonly IServiceProvider _services;
     private readonly IPhotoImportService _photoImportService;
-    private readonly MauiGoogleDriveClient _googleDriveClient;
     private readonly ScrabblerWorkflowService _workflow;
     private readonly NavigationService _navigation;
     private string _status = string.Empty;
@@ -19,17 +18,14 @@ public sealed class HomeViewModel : ObservableObject
     public HomeViewModel(
         IServiceProvider services,
         IPhotoImportService photoImportService,
-        MauiGoogleDriveClient googleDriveClient,
         ScrabblerWorkflowService workflow,
         NavigationService navigation)
     {
         _services = services;
         _photoImportService = photoImportService;
-        _googleDriveClient = googleDriveClient;
         _workflow = workflow;
         _navigation = navigation;
         LoadFromGalleryCommand = new AsyncCommand(LoadFromGalleryAsync);
-        DownloadFromGoogleDriveCommand = new AsyncCommand(DownloadFromGoogleDriveAsync);
         WarmDictionaryCommand = new AsyncCommand(WarmDictionaryAsync);
         _ = RefreshDictionaryStatusAsync();
     }
@@ -56,19 +52,11 @@ public sealed class HomeViewModel : ObservableObject
 
     public ICommand LoadFromGalleryCommand { get; }
 
-    public ICommand DownloadFromGoogleDriveCommand { get; }
-
     public ICommand WarmDictionaryCommand { get; }
 
     private async Task LoadFromGalleryAsync()
     {
         await RunImageFlowAsync(async () => await _photoImportService.PickPhotoAsync());
-    }
-
-    private async Task DownloadFromGoogleDriveAsync()
-    {
-        await RunImageFlowAsync(async () => await _googleDriveClient.DownloadNewestImageAsync(
-            Path.Combine(FileSystem.CacheDirectory, "GoogleDrive")));
     }
 
     private async Task RunImageFlowAsync(Func<Task<FileInfo?>> getImage)

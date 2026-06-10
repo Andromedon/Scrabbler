@@ -245,12 +245,14 @@ struct OCRFixtureTests {
                 ["REJ", "JADY", "ACHOLIA", "SZKOLONY"],
                 [String: Character](),
                 [String](),
-                ["J8:O->D"]
+                ["J8:O->D"],
+                ["JAOY"]
             ),
             (
                 "board-real-7330.jpg",
                 ["DLAŃ", "TEGO", "BLATY", "SERIA", "WIĘŹ"],
                 [String: Character](),
+                [String](),
                 [String](),
                 [String]()
             ),
@@ -259,13 +261,15 @@ struct OCRFixtureTests {
                 ["STANOWIŁAŚ", "BAKIEM", "SEZON"],
                 [String: Character](),
                 ["I7"],
-                ["H6:.->E", "J6:.->A", "H7:.->Z"]
+                ["H6:.->E", "J6:.->A", "H7:.->Z"],
+                ["KIEM"]
             ),
             (
                 "board-real-7403.jpg",
                 ["MĄCIE", "TRASY", "TETY", "DAGĘ", "POBROŃ", "WYRU"],
                 ["G2": "M", "H2": "Ą", "I2": "C", "J2": "I", "K2": "E"],
                 ["F2"],
+                [String](),
                 [String]()
             ),
             (
@@ -273,7 +277,8 @@ struct OCRFixtureTests {
                 ["SWA", "GROZIMY", "ZAMEK", "FAJNY", "MOPS", "SŁAWNY", "GLEBY"],
                 [String: Character](),
                 [String](),
-                ["G12:Ę->S", "H12:I->Ł", "K12:Ń->N", "H14:L->E", "J14:A->Y"]
+                ["G12:Ę->S", "H12:I->Ł", "K12:Ń->N", "H14:L->E", "J14:A->Y"],
+                ["GLLBA", "ĘIAWŃY"]
             )
         ]
     )
@@ -282,7 +287,8 @@ struct OCRFixtureTests {
         expectedWords: [String],
         expectedCells: [String: Character],
         forbiddenCells: [String],
-        expectedRepairs: [String]
+        expectedRepairs: [String],
+        forbiddenWords: [String]
     ) async throws {
         let result = try await readFixture(fileName)
         let dictionary = PolishWordDictionary.fromWords(Array(Set(expectedWords.flatMap(dictionaryWords(for:)))))
@@ -294,6 +300,10 @@ struct OCRFixtureTests {
 
         for expectedWord in expectedWords {
             #expect(words.contains(expectedWord), "\(fileName) missing repaired word \(expectedWord); repaired words: \(words.sorted())")
+        }
+
+        for forbiddenWord in forbiddenWords {
+            #expect(!words.contains(forbiddenWord), "\(fileName) kept forbidden repaired word \(forbiddenWord); repaired words: \(words.sorted())")
         }
 
         for (coordinate, expectedLetter) in expectedCells {

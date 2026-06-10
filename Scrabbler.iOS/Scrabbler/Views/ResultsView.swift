@@ -49,6 +49,11 @@ struct ResultsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
+                            if let bonus = MoveFormatter.rackBingoBonusText(move) {
+                                Label(bonus, systemImage: "sparkles")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.green)
+                            }
                             Text(MoveFormatter.placedTilesLabelText(move))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -104,15 +109,23 @@ private struct MoveDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
+            if let bonus = MoveFormatter.rackBingoBonusText(move) {
+                Label(bonus, systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.green)
+            }
+
             Text(MoveFormatter.placedTilesLabelText(move))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(MoveFormatter.crossWordsLabelText(move))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if !move.crossWords.isEmpty {
+                Text(MoveFormatter.crossWordsLabelText(move))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
@@ -126,11 +139,37 @@ struct MovePreviewView: View {
     let move: Move
 
     var body: some View {
-        BoardGridView(board: state.board.applying(move), highlightedCells: highlightedCells()) { _, _ in }
+        VStack(spacing: 6) {
+            BoardGridView(
+                board: state.board.applying(move),
+                highlightedCells: highlightedCells(),
+                highlightedLegendText: "placed"
+            ) { _, _ in }
+
+            HStack(spacing: 10) {
+                legendItem(color: .green, text: "placed")
+                Text(MoveFormatter.coordinateDirectionText(move))
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Move preview: green cells are placed tiles")
+        }
     }
 
     private func highlightedCells() -> Set<String> {
         Set(move.placedTiles.map { BoardGridView.key(row: $0.row, column: $0.column) })
+    }
+
+    private func legendItem(color: Color, text: String) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color.opacity(0.85))
+                .frame(width: 8, height: 8)
+            Text(text)
+        }
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(.secondary)
     }
 }
 

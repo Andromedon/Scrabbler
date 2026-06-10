@@ -51,6 +51,10 @@ public enum MoveFormatter {
         "Crosses: \(crossWordsText(move, emptyText: emptyText))"
     }
 
+    public static func rackBingoBonusText(_ move: Move) -> String? {
+        move.placedTiles.count == 7 ? "+\(MoveSolver.rackBingoBonus) all tiles" : nil
+    }
+
     public static func compactDescription(_ move: Move) -> String {
         let direction = move.direction == .horizontal ? "H" : "V"
         let placed = move.placedTiles

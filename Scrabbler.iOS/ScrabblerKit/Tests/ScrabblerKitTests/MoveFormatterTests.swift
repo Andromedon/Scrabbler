@@ -99,6 +99,38 @@ struct MoveFormatterTests {
         #expect(MoveFormatter.stableID(blankMove) != MoveFormatter.stableID(regularMove))
     }
 
+    @Test func rackBingoBonusTextOnlyAppearsForSevenPlacedTiles() {
+        let sevenTileMove = Move(
+            word: "WYLEJĘ",
+            row: 7,
+            column: 4,
+            direction: .horizontal,
+            placedTiles: [
+                PlacedTile(row: 7, column: 4, letter: "W", isBlank: false),
+                PlacedTile(row: 7, column: 5, letter: "Y", isBlank: false),
+                PlacedTile(row: 7, column: 6, letter: "L", isBlank: false),
+                PlacedTile(row: 7, column: 7, letter: "E", isBlank: false),
+                PlacedTile(row: 7, column: 8, letter: "J", isBlank: false),
+                PlacedTile(row: 7, column: 9, letter: "Ę", isBlank: true),
+                PlacedTile(row: 7, column: 10, letter: "A", isBlank: false)
+            ],
+            score: 53,
+            crossWords: []
+        )
+        let sixTileMove = Move(
+            word: "WYLEJ",
+            row: 7,
+            column: 4,
+            direction: .horizontal,
+            placedTiles: Array(sevenTileMove.placedTiles.prefix(6)),
+            score: 20,
+            crossWords: []
+        )
+
+        #expect(MoveFormatter.rackBingoBonusText(sevenTileMove) == "+25 all tiles")
+        #expect(MoveFormatter.rackBingoBonusText(sixTileMove) == nil)
+    }
+
     @Test func boardApplyingMovePlacesOnlyMoveTiles() {
         let bonuses = Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size)
         let board = Board(bonuses: bonuses)

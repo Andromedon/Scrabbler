@@ -11,6 +11,7 @@ struct BoardCorrectionView: View {
                 BoardGridView(
                     board: state.board,
                     highlightedCells: state.autoRepairedCellKeys,
+                    highlightedLegendText: "auto",
                     warningCells: warningCellKeys,
                     selectedCellKey: state.selectedCorrectionCellKey,
                     onTapCell: { row, column in
@@ -135,6 +136,8 @@ struct BoardCorrectionView: View {
                 }
             }
 
+            highlightLegend
+
             if !state.lastBoardReadTiming.isEmpty {
                 Text(state.lastBoardReadTiming)
                     .font(.caption.monospacedDigit())
@@ -162,6 +165,27 @@ struct BoardCorrectionView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
+    }
+
+    private var highlightLegend: some View {
+        HStack(spacing: 10) {
+            legendItem(color: .green, text: "auto")
+            legendItem(color: .orange, text: "check")
+            legendItem(color: .accentColor, text: "selected")
+        }
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(.secondary)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Board legend: green auto corrected, orange check, accent selected")
+    }
+
+    private func legendItem(color: Color, text: String) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color.opacity(0.85))
+                .frame(width: 8, height: 8)
+            Text(text)
+        }
     }
 
     private var autoCorrectionsReview: some View {
@@ -341,6 +365,7 @@ struct BoardCorrectionView: View {
 struct BoardGridView: View {
     let board: ScrabblerKit.Board
     let highlightedCells: Set<String>
+    let highlightedLegendText: String
     let warningCells: Set<String>
     let selectedCellKey: String?
     let onTapCell: (Int, Int) -> Void
@@ -348,12 +373,14 @@ struct BoardGridView: View {
     init(
         board: ScrabblerKit.Board,
         highlightedCells: Set<String> = [],
+        highlightedLegendText: String = "highlighted",
         warningCells: Set<String> = [],
         selectedCellKey: String? = nil,
         onTapCell: @escaping (Int, Int) -> Void
     ) {
         self.board = board
         self.highlightedCells = highlightedCells
+        self.highlightedLegendText = highlightedLegendText
         self.warningCells = warningCells
         self.selectedCellKey = selectedCellKey
         self.onTapCell = onTapCell

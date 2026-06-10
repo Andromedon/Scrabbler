@@ -229,6 +229,10 @@ struct BoardCorrectionView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(
+                                Text("Auto correction \(item.coordinate), \(display(item.originalLetter)) to \(display(item.repairedLetter))")
+                            )
+                            .accessibilityHint("Adds this cell to the correction field")
                         }
                     }
                 }
@@ -294,6 +298,10 @@ struct BoardCorrectionView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(
+                                Text("OCR review \(item.coordinate), \(display(item.letter)), \(item.reason)")
+                            )
+                            .accessibilityHint("Adds this cell to the correction field")
                         }
                     }
                 }
@@ -340,6 +348,10 @@ struct BoardCorrectionView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(
+                                Text("Word to check \(word.text) at \(word.coordinate)")
+                            )
+                            .accessibilityHint("Adds all word cells to the correction field")
                         }
                     }
                 }
@@ -422,6 +434,9 @@ struct BoardGridView: View {
                                     cellContent(row: row, column: column, cellSize: cellSize)
                                 }
                             }
+                            .accessibilityLabel(
+                                Text(cellAccessibilityLabel(row: row, column: column))
+                            )
                             .buttonStyle(.plain)
                             .frame(width: cellSize, height: cellSize)
                         }
@@ -502,6 +517,30 @@ struct BoardGridView: View {
 
     private func bonusText(row: Int, column: Int) -> String? {
         BoardReviewTextFormatter.bonusText(board[row, column].bonus)
+    }
+
+    private func cellAccessibilityLabel(row: Int, column: Int) -> String {
+        let key = Self.key(row: row, column: column)
+        var parts = [BoardCoordinateFormatter.coordinate(row: row, column: column)]
+        if let letter = board[row, column].letter {
+            parts.append("letter \(letter)")
+        } else if let bonus = bonusText(row: row, column: column) {
+            parts.append("bonus \(bonus)")
+        } else {
+            parts.append("empty")
+        }
+
+        if highlightedCells.contains(key) {
+            parts.append(highlightedLegendText)
+        }
+        if warningCells.contains(key) {
+            parts.append("check")
+        }
+        if selectedCellKey == key {
+            parts.append("selected")
+        }
+
+        return parts.joined(separator: ", ")
     }
 
     private func bonusTextColor(row: Int, column: Int) -> Color {

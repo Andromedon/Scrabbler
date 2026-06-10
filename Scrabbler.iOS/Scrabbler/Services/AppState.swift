@@ -99,6 +99,10 @@ final class AppState: ObservableObject {
     private var lastCellReads: [CellRead] = []
     private var manuallyCorrectedCellKeys: Set<String> = []
 
+    var selectedCorrectionCellKey: String? {
+        selectedCorrectionTarget.map { cellKey(row: $0.row, column: $0.column) }
+    }
+
     init() {
         let loadedBonuses = (try? BundledDataLoader.loadBonusLayout()) ??
             Array(repeating: Array(repeating: BonusType.none, count: Board.size), count: Board.size)
@@ -113,6 +117,7 @@ final class AppState: ObservableObject {
     }
 
     func loadDictionary() {
+        errorMessage = nil
         startDictionaryLoad()
     }
 
@@ -121,6 +126,7 @@ final class AppState: ObservableObject {
         isBusy = true
         status = "Reading board..."
         lastBoardReadTiming = ""
+        errorMessage = nil
         let totalStartedAt = Date()
         defer {
             isBusy = false
@@ -212,6 +218,7 @@ final class AppState: ObservableObject {
             removeAutoRepairMarkers(for: correctedKeys)
             refreshReviewCells()
             refreshBoardValidation()
+            errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -251,6 +258,7 @@ final class AppState: ObservableObject {
         isBusy = true
         status = "Solving..."
         lastSolveTiming = ""
+        errorMessage = nil
 
         Task {
             do {
@@ -316,6 +324,7 @@ final class AppState: ObservableObject {
         lastCellReads = []
         manuallyCorrectedCellKeys = []
         screen = .home
+        errorMessage = nil
     }
 
     private func startDictionaryLoad() {

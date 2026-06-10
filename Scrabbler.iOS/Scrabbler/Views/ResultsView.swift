@@ -9,7 +9,7 @@ struct ResultsView: View {
             if let selected = state.selectedMove {
                 MovePreviewView(move: selected)
                     .environmentObject(state)
-                    .frame(maxHeight: 260)
+                    .frame(maxHeight: 320)
                 MoveDetailView(move: selected)
                     .padding(.horizontal)
             }
@@ -64,6 +64,7 @@ struct ResultsView: View {
                     .buttonStyle(.plain)
                     .listRowBackground(state.selectedMove?.stableID == move.stableID ? Color.accentColor.opacity(0.14) : Color.clear)
                 }
+                .listStyle(.plain)
             }
 
             Button("Finish") {

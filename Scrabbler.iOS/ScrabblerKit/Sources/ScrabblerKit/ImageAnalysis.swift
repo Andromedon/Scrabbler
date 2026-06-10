@@ -260,6 +260,7 @@ public struct NativeBoardImageReader: BoardImageReading {
         }
 
         promoteLatentTileRuns(&readsByCell)
+        pruneWeakOrphanReads(&readsByCell)
 
         var board = Board(bonuses: bonuses)
         let cells = readsByCell.values.sorted {
@@ -382,6 +383,54 @@ public struct NativeBoardImageReader: BoardImageReading {
         }
 
         return topScore >= 0.84 ? (top.letter, topScore) : nil
+    }
+
+    private func pruneWeakOrphanReads(_ readsByCell: inout [String: CellRead]) {
+        var removedAny = true
+        while removedAny {
+            removedAny = false
+            let occupiedCoordinates = Set(readsByCell.values.compactMap { cell -> String? in
+                guard cell.letter != nil else { return nil }
+                return "\(cell.row):\(cell.column)"
+            })
+
+            let orphanKeys = readsByCell.compactMap { key, cell -> String? in
+                guard shouldPruneOrphan(cell, occupiedCoordinates: occupiedCoordinates) else {
+                    return nil
+                }
+                return key
+            }
+
+            guard !orphanKeys.isEmpty else { break }
+            for key in orphanKeys {
+                guard let cell = readsByCell[key] else { continue }
+                readsByCell[key] = CellRead(
+                    row: cell.row,
+                    column: cell.column,
+                    letter: nil,
+                    isBlank: cell.isBlank,
+                    confidence: 0,
+                    candidates: cell.candidates,
+                    detectedScoreDigit: cell.detectedScoreDigit
+                )
+                removedAny = true
+            }
+        }
+    }
+
+    private func shouldPruneOrphan(_ cell: CellRead, occupiedCoordinates: Set<String>) -> Bool {
+        guard cell.letter != nil else { return false }
+        guard cell.confidence < 0.72 else { return false }
+        guard cell.detectedScoreDigit == nil else { return false }
+
+        let neighbors = [
+            "\(cell.row - 1):\(cell.column)",
+            "\(cell.row + 1):\(cell.column)",
+            "\(cell.row):\(cell.column - 1)",
+            "\(cell.row):\(cell.column + 1)"
+        ]
+
+        return neighbors.allSatisfy { !occupiedCoordinates.contains($0) }
     }
 
     private func scoreDigitOverrideThreshold(_ lhs: Character, _ rhs: Character) -> Double {
@@ -554,6 +603,7 @@ public struct DictionaryBoardRepairer: Sendable {
     private func bestRepair(on board: Board, invalidWords: [BoardWord], cellsByKey: [String: CellRead]) -> RepairCandidate? {
         let rawCandidates = (invalidWords
             .flatMap { repairCandidates(for: $0, on: board, cellsByKey: cellsByKey) }
+            + invalidWords.flatMap { edgeFalsePositiveCandidates(for: $0, on: board, cellsByKey: cellsByKey) }
             + gapRepairCandidates(on: board, cellsByKey: cellsByKey)
             + multiGapRepairCandidates(on: board, cellsByKey: cellsByKey))
             .filter { candidate in
@@ -810,7 +860,7 @@ public struct DictionaryBoardRepairer: Sendable {
         return RepairCandidate(
             board: repairedBoard,
             repairs: repairs,
-            invalidWordReduction: max(1, beforeInvalid - afterInvalid),
+            invalidWordReduction: repairReduction(beforeInvalid: beforeInvalid, afterInvalid: afterInvalid, repairs: repairs),
             score: score
         )
     }
@@ -879,6 +929,15 @@ public struct DictionaryBoardRepairer: Sendable {
         }
 
         return 1 - candidate.distance >= 0.84
+    }
+
+    private func repairReduction(beforeInvalid: Int, afterInvalid: Int, repairs: [BoardRepair]) -> Int {
+        let reduction = beforeInvalid - afterInvalid
+        if reduction > 0 {
+            return reduction
+        }
+
+        return repairs.contains(where: { $0.originalLetter == nil }) ? 1 : reduction
     }
 
     private func gapRepairCandidate(
@@ -1087,7 +1146,7 @@ public struct DictionaryBoardRepairer: Sendable {
         return RepairCandidate(
             board: repairedBoard,
             repairs: repairs,
-            invalidWordReduction: max(1, beforeInvalid - afterInvalid),
+            invalidWordReduction: repairReduction(beforeInvalid: beforeInvalid, afterInvalid: afterInvalid, repairs: repairs),
             score: score
         )
     }
@@ -1149,7 +1208,218 @@ public struct DictionaryBoardRepairer: Sendable {
             }
         }
 
+        candidates.append(contentsOf: multiReplacementCandidates(for: word, on: board, cellsByKey: cellsByKey))
         return candidates
+    }
+
+    private func edgeFalsePositiveCandidates(
+        for word: BoardWord,
+        on board: Board,
+        cellsByKey: [String: CellRead]
+    ) -> [RepairCandidate] {
+        guard !dictionary.contains(word.text),
+              word.text.count > 2 else {
+            return []
+        }
+
+        let edgeIndices = [word.coordinates.startIndex, word.coordinates.index(before: word.coordinates.endIndex)]
+        return edgeIndices.compactMap { index in
+            edgeFalsePositiveCandidate(for: word, edgeIndex: index, on: board, cellsByKey: cellsByKey)
+        }
+    }
+
+    private func edgeFalsePositiveCandidate(
+        for word: BoardWord,
+        edgeIndex: Int,
+        on board: Board,
+        cellsByKey: [String: CellRead]
+    ) -> RepairCandidate? {
+        let coordinate = word.coordinates[edgeIndex]
+        guard let current = board[coordinate.row, coordinate.column].letter,
+              let read = cellsByKey[Self.key(row: coordinate.row, column: coordinate.column)],
+              read.letter == current,
+              canDropEdgeCell(
+                (row: coordinate.row, column: coordinate.column, letter: current),
+                cellsByKey: cellsByKey
+              ),
+              !affectedWords(on: board, row: coordinate.row, column: coordinate.column).contains(where: { dictionary.contains($0.text) }) else {
+            return nil
+        }
+
+        var remainingLetters = Array(word.text)
+        remainingLetters.remove(at: edgeIndex)
+        let remainingWord = String(remainingLetters)
+        guard remainingWord.count > 1,
+              dictionary.contains(remainingWord) else {
+            return nil
+        }
+
+        let repairedBoard = board.setCell(row: coordinate.row, column: coordinate.column, letter: nil)
+        let repair = BoardRepair(
+            row: coordinate.row,
+            column: coordinate.column,
+            originalLetter: current,
+            repairedLetter: nil,
+            reason: "dictionary: edge false positive"
+        )
+
+        guard repairsDoNotIntroduceNewInvalidAffectedWords([repair], originalBoard: board, repairedBoard: repairedBoard) else {
+            return nil
+        }
+
+        let beforeInvalid = invalidWords(on: board).count
+        let afterInvalid = invalidWords(on: repairedBoard).count
+        return RepairCandidate(
+            board: repairedBoard,
+            repairs: [repair],
+            invalidWordReduction: beforeInvalid - afterInvalid,
+            score: 0.75 + (1 - read.confidence)
+        )
+    }
+
+    private func multiReplacementCandidates(
+        for word: BoardWord,
+        on board: Board,
+        cellsByKey: [String: CellRead]
+    ) -> [RepairCandidate] {
+        guard word.text.count >= 4,
+              let words = dictionary.wordsByLength[word.text.count] else {
+            return []
+        }
+
+        let currentLetters = Array(word.text)
+        let beforeInvalid = invalidWords(on: board).count
+        let matches = words.compactMap { candidateWord -> RepairCandidate? in
+            let expectedLetters = Array(candidateWord)
+            guard expectedLetters.count == currentLetters.count else { return nil }
+
+            let mismatchIndices = currentLetters.indices.filter { currentLetters[$0] != expectedLetters[$0] }
+            guard (2...3).contains(mismatchIndices.count) else {
+                return nil
+            }
+
+            var repairedBoard = board
+            var repairs: [BoardRepair] = []
+            var score = Double(candidateWord.count)
+
+            for index in mismatchIndices {
+                let coordinate = word.coordinates[index]
+                let current = currentLetters[index]
+                let expected = expectedLetters[index]
+                guard let cell = cellsByKey[Self.key(row: coordinate.row, column: coordinate.column)],
+                      let replacementScore = multiReplacementEvidence(cell: cell, current: current, expected: expected) else {
+                    return nil
+                }
+
+                repairedBoard = repairedBoard.setCell(row: coordinate.row, column: coordinate.column, letter: expected)
+                repairs.append(BoardRepair(
+                    row: coordinate.row,
+                    column: coordinate.column,
+                    originalLetter: current,
+                    repairedLetter: expected,
+                    reason: "dictionary: \(candidateWord)"
+                ))
+                score += replacementScore
+            }
+
+            guard repairsDoNotIntroduceNewInvalidAffectedWords(
+                repairs,
+                originalBoard: board,
+                repairedBoard: repairedBoard
+            ) else {
+                return nil
+            }
+
+            let afterInvalid = invalidWords(on: repairedBoard).count
+            return RepairCandidate(
+                board: repairedBoard,
+                repairs: repairs,
+                invalidWordReduction: repairReduction(beforeInvalid: beforeInvalid, afterInvalid: afterInvalid, repairs: repairs),
+                score: score
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.invalidWordReduction != rhs.invalidWordReduction {
+                return lhs.invalidWordReduction > rhs.invalidWordReduction
+            }
+            return lhs.score > rhs.score
+        }
+
+        guard let best = matches.first else { return [] }
+        if matches.count > 1,
+           matches[0].invalidWordReduction == matches[1].invalidWordReduction,
+           abs(matches[0].score - matches[1].score) < 0.001 {
+            return []
+        }
+
+        return [best]
+    }
+
+    private func multiReplacementEvidence(cell: CellRead, current: Character, expected: Character) -> Double? {
+        guard cell.letter == current,
+              cell.confidence <= 0.72 else {
+            return nil
+        }
+
+        let top = cell.candidates.first
+        let topScore = top.map { max(0, 1 - $0.distance) } ?? 0
+        let candidate = cell.candidates.first(where: { $0.letter == expected })
+        let candidateScore = candidate.map { max(0, 1 - $0.distance) } ?? 0
+        let scoreDigitMatchesExpected = cell.detectedScoreDigit.map { letterValues[expected] == $0 } ?? false
+        let scoreDigitMatchesCurrent = cell.detectedScoreDigit.map { letterValues[current] == $0 } ?? false
+
+        if scoreDigitMatchesCurrent && !scoreDigitMatchesExpected && !isDiacriticVariant(current, expected) {
+            guard cell.confidence <= 0.56,
+                  candidateScore >= 0.48,
+                  candidateScore + 0.04 >= topScore else {
+                return nil
+            }
+
+            return 0.38 + candidateScore
+        }
+
+        if candidate == nil,
+           isDiacriticVariant(current, expected),
+           cell.confidence <= 0.70 {
+            return 0.40
+        }
+
+        if scoreDigitMatchesExpected && candidateScore >= 0.50 && candidateScore + 0.02 >= topScore {
+            return 0.95 + candidateScore
+        }
+
+        if isDiacriticVariant(current, expected),
+           candidateScore >= 0.48,
+           candidateScore + 0.08 >= topScore {
+            return 0.70 + candidateScore
+        }
+
+        if isDiacriticVariant(current, expected),
+           candidateScore >= 0.48,
+           candidateScore + 0.13 >= topScore,
+           cell.confidence <= 0.68 {
+            return 0.48 + candidateScore
+        }
+
+        if likelyConfusions(for: current).contains(expected),
+           candidateScore >= 0.48,
+           candidateScore + 0.08 >= topScore {
+            return 0.62 + candidateScore
+        }
+
+        if candidateScore >= 0.52,
+           candidateScore + 0.04 >= topScore,
+           cell.confidence <= 0.58 {
+            return 0.55 + candidateScore
+        }
+
+        if candidateScore >= 0.48,
+           candidateScore + 0.03 >= topScore,
+           cell.confidence <= 0.52 {
+            return 0.42 + candidateScore
+        }
+
+        return nil
     }
 
     private func replacementLetters(for cell: CellRead, current: Character) -> [Character] {

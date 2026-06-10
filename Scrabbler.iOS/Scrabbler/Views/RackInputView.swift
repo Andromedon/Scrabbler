@@ -37,6 +37,22 @@ struct RackInputView: View {
             }
             .padding(.horizontal)
 
+            if !state.dictionaryStatus.isEmpty || !state.lastDictionaryLoadTiming.isEmpty {
+                VStack(spacing: 4) {
+                    if !state.dictionaryStatus.isEmpty {
+                        Text(state.dictionaryStatus)
+                    }
+                    if !state.lastDictionaryLoadTiming.isEmpty {
+                        Text(state.lastDictionaryLoadTiming)
+                            .font(.caption.monospacedDigit())
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            }
+
             Button {
                 state.solve()
             } label: {
@@ -62,6 +78,14 @@ struct RackInputView: View {
                 Text(state.status)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+
+            if !state.lastSolveTiming.isEmpty {
+                Text(state.lastSolveTiming)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
             }
 
             Spacer()

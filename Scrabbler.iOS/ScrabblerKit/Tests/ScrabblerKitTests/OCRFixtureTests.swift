@@ -38,7 +38,9 @@ struct OCRFixtureTests {
             "board-real-7331.jpg",
             "board-real-7367.jpg",
             "board-real-7392.jpg",
-            "board-real-7403.jpg"
+            "board-real-7403.jpg",
+            "board-sample.jpg",
+            "board-sample-cropped.png"
         ]
 
         for fixture in expected {
@@ -70,14 +72,34 @@ struct OCRFixtureTests {
     @Test(
         "reads representative real board words",
         arguments: [
-            FixtureExpectation(fileName: "board-real-7273.jpg", minimumOccupiedCells: 70, expectedWords: ["PAT", "STYPA", "URODNY", "RADA"]),
-            FixtureExpectation(fileName: "board-real-7295.jpg", minimumOccupiedCells: 55, expectedWords: ["GODY", "DONGA", "PANIE", "ANIMĄ", "SROCZYMI"]),
-            FixtureExpectation(fileName: "board-real-7330.jpg", minimumOccupiedCells: 50, expectedWords: ["TURA", "DLAŃ", "TEGO", "BLATY", "SERIA"]),
-            FixtureExpectation(fileName: "board-real-7331.jpg", minimumOccupiedCells: 60, expectedWords: ["ACHOLIA", "REJ", "SZKOLONY"]),
+            FixtureExpectation(
+                fileName: "board-real-7273.jpg",
+                minimumOccupiedCells: 70,
+                expectedWords: ["PAT", "STYPA", "URODNY", "RADA"],
+                expectedCells: ["J2": "C", "K2": "E", "L2": "N", "M2": "Ą", "C8": "U", "D8": "R", "E8": "O", "F8": "D", "G8": "N", "H8": "Y"]
+            ),
+            FixtureExpectation(
+                fileName: "board-real-7295.jpg",
+                minimumOccupiedCells: 55,
+                expectedWords: ["GODY", "DONGA", "PANIE", "ANIMĄ", "SROCZYMI"],
+                expectedCells: ["C8": "S", "D8": "R", "E8": "O", "F8": "C", "G8": "Z", "H8": "Y", "I8": "M", "J8": "I"]
+            ),
+            FixtureExpectation(
+                fileName: "board-real-7330.jpg",
+                minimumOccupiedCells: 50,
+                expectedWords: ["TURA", "DLAŃ", "TEGO", "BLATY", "SERIA", "WIĘŹ"],
+                expectedCells: ["B7": "T", "C7": "U", "D7": "R", "E7": "A", "H8": "B", "I8": "L", "J8": "A", "K8": "T", "L8": "Y", "J11": "W", "K11": "I", "L11": "Ę", "M11": "Ź"]
+            ),
+            FixtureExpectation(
+                fileName: "board-real-7331.jpg",
+                minimumOccupiedCells: 60,
+                expectedWords: ["ACHOLIA", "REJ", "SZKOLONY"],
+                expectedCells: ["E7": "S", "F7": "Z", "G7": "K", "H7": "O", "I7": "L", "J7": "O", "K7": "N", "L7": "Y", "G12": "A", "H12": "C", "I12": "H", "J12": "O", "K12": "L", "L12": "I", "M12": "A"]
+            ),
             FixtureExpectation(
                 fileName: "board-real-7367.jpg",
                 minimumOccupiedCells: 30,
-                expectedWords: ["CERO", "DOZA", "STAZIE", "DMIJ"],
+                expectedWords: ["CERO", "ŚRODY", "DOZA", "STAZIE", "DMIJ"],
                 expectedCells: ["I2": "Ś", "J2": "R", "K2": "O", "L2": "D", "M2": "Y"]
             ),
             FixtureExpectation(
@@ -92,6 +114,20 @@ struct OCRFixtureTests {
                 expectedWords: ["TRASY", "TETY", "DAGĘ", "POBROŃ", "WYRU"],
                 expectedCells: ["G2": "M", "H2": "Ą", "I2": "C", "J2": "I", "K2": "E"],
                 forbiddenCells: ["F2"]
+            ),
+            FixtureExpectation(
+                fileName: "board-sample.jpg",
+                minimumOccupiedCells: 35,
+                expectedWords: ["GROZIMY", "SŁAWNY", "GLEBY", "ZAMEK", "FAJNY"],
+                expectedCells: ["F6": "G", "G6": "R", "H6": "O", "I6": "Z", "J6": "I", "K6": "M", "L6": "Y", "G12": "S", "H12": "Ł", "I12": "A", "J12": "W", "K12": "N", "L12": "Y"]
+            ),
+            FixtureExpectation(
+                fileName: "board-sample-cropped.png",
+                minimumOccupiedCells: 35,
+                expectedWords: ["SWA", "GROZIMY", "ZAMEK", "FAJNY", "MOPS"],
+                parityGapWords: [],
+                expectedCells: ["I3": "S", "J3": "W", "K3": "A", "F6": "G", "G6": "R", "H6": "O", "I6": "Z", "J6": "I", "K6": "M", "L6": "Y"],
+                forbiddenCells: ["F2", "H4"]
             )
         ]
     )
@@ -124,7 +160,9 @@ struct OCRFixtureTests {
             FixtureExpectation(fileName: "board-real-7331.jpg", minimumOccupiedCells: 60, expectedWords: [], parityGapWords: []),
             FixtureExpectation(fileName: "board-real-7367.jpg", minimumOccupiedCells: 30, expectedWords: [], parityGapWords: []),
             FixtureExpectation(fileName: "board-real-7392.jpg", minimumOccupiedCells: 18, expectedWords: [], parityGapWords: []),
-            FixtureExpectation(fileName: "board-real-7403.jpg", minimumOccupiedCells: 40, expectedWords: [], parityGapWords: [])
+            FixtureExpectation(fileName: "board-real-7403.jpg", minimumOccupiedCells: 40, expectedWords: [], parityGapWords: []),
+            FixtureExpectation(fileName: "board-sample.jpg", minimumOccupiedCells: 35, expectedWords: [], parityGapWords: []),
+            FixtureExpectation(fileName: "board-sample-cropped.png", minimumOccupiedCells: 35, expectedWords: [], parityGapWords: [])
         ]
     )
     private func documentsRemainingOCRParityGaps(expectation: FixtureExpectation) async throws {
@@ -178,6 +216,104 @@ struct OCRFixtureTests {
         #expect(boardLines(repaired.board).contains("MĄCIE"))
     }
 
+    @Test func repairsLowConfidenceWhiteTileWordsInCroppedSampleBoard() async throws {
+        let result = try await readFixture("board-sample-cropped.png")
+
+        let repaired = DictionaryBoardRepairer(
+            dictionary: PolishWordDictionary.fromWords([
+                "SWA",
+                "GROZIMY",
+                "ZAMEK",
+                "FAJNY",
+                "MOPS",
+                "SŁAWNY",
+                "GLEBY"
+            ]),
+            letterValues: try BundledDataLoader.loadLetterValues()
+        ).repair(result)
+
+        let words = Set(boardLines(repaired.board))
+        #expect(words.contains("SŁAWNY"))
+        #expect(words.contains("GLEBY"))
+    }
+
+    @Test(
+        "repaired board keeps representative fixture words",
+        arguments: [
+            (
+                "board-real-7331.jpg",
+                ["REJ", "JADY", "ACHOLIA", "SZKOLONY"],
+                [String: Character](),
+                [String](),
+                ["J8:O->D"]
+            ),
+            (
+                "board-real-7330.jpg",
+                ["DLAŃ", "TEGO", "BLATY", "SERIA", "WIĘŹ"],
+                [String: Character](),
+                [String](),
+                [String]()
+            ),
+            (
+                "board-real-7392.jpg",
+                ["STANOWIŁAŚ", "BAKIEM", "SEZON"],
+                [String: Character](),
+                ["I7"],
+                ["H6:.->E", "J6:.->A", "H7:.->Z"]
+            ),
+            (
+                "board-real-7403.jpg",
+                ["MĄCIE", "TRASY", "TETY", "DAGĘ", "POBROŃ", "WYRU"],
+                ["G2": "M", "H2": "Ą", "I2": "C", "J2": "I", "K2": "E"],
+                ["F2"],
+                [String]()
+            ),
+            (
+                "board-sample-cropped.png",
+                ["SWA", "GROZIMY", "ZAMEK", "FAJNY", "MOPS", "SŁAWNY", "GLEBY"],
+                [String: Character](),
+                [String](),
+                ["G12:Ę->S", "H12:I->Ł", "K12:Ń->N", "H14:L->E", "J14:A->Y"]
+            )
+        ]
+    )
+    private func repairedBoardKeepsRepresentativeFixtureWords(
+        fileName: String,
+        expectedWords: [String],
+        expectedCells: [String: Character],
+        forbiddenCells: [String],
+        expectedRepairs: [String]
+    ) async throws {
+        let result = try await readFixture(fileName)
+        let dictionary = PolishWordDictionary.fromWords(Array(Set(expectedWords.flatMap(dictionaryWords(for:)))))
+        let repaired = DictionaryBoardRepairer(
+            dictionary: dictionary,
+            letterValues: try BundledDataLoader.loadLetterValues()
+        ).repair(result)
+        let words = Set(boardLines(repaired.board))
+
+        for expectedWord in expectedWords {
+            #expect(words.contains(expectedWord), "\(fileName) missing repaired word \(expectedWord); repaired words: \(words.sorted())")
+        }
+
+        for (coordinate, expectedLetter) in expectedCells {
+            let parsed = try parseCoordinate(coordinate)
+            #expect(repaired.board[parsed.row, parsed.column].letter == expectedLetter, "\(fileName) expected repaired \(coordinate)=\(expectedLetter), got \(repaired.board[parsed.row, parsed.column].letter.map(String.init) ?? ".")")
+        }
+
+        for coordinate in forbiddenCells {
+            let parsed = try parseCoordinate(coordinate)
+            #expect(repaired.board[parsed.row, parsed.column].letter == nil, "\(fileName) expected repaired \(coordinate) to stay empty, got \(repaired.board[parsed.row, parsed.column].letter.map(String.init) ?? ".")")
+        }
+
+        let actualRepairs = Set(repaired.appliedRepairs.map(repairSummary))
+        let expectedRepairSet = Set(expectedRepairs)
+        #expect(
+            actualRepairs == expectedRepairSet,
+            "\(fileName) expected repairs \(expectedRepairSet.sorted()), actual repairs: \(actualRepairs.sorted())"
+        )
+    }
+
     @Test func redScoreBadgeDoesNotLeakIntoNearbyGlyphsInRealBoard7403() async throws {
         let result = try await readFixture("board-real-7403.jpg")
 
@@ -209,13 +345,28 @@ struct OCRFixtureTests {
         #expect(boardLines(result.board).contains("SZKOLONY"))
     }
 
+    @Test func dictionaryRepairDoesNotMutateAlreadyValidCrossWordInRealBoard7330() async throws {
+        let result = try await readFixture("board-real-7330.jpg")
+
+        let repaired = DictionaryBoardRepairer(
+            dictionary: PolishWordDictionary.fromWords(["DLAŃ", "TEGO", "BLATY", "SERIA", "WIĘŹ", "KA", "LG"]),
+            letterValues: try BundledDataLoader.loadLetterValues()
+        ).repair(result)
+
+        #expect(boardLines(repaired.board).contains("WIĘŹ"))
+        #expect(!boardLines(repaired.board).contains("WAĘŹ"))
+        #expect(!repaired.appliedRepairs.contains { repair in
+            repair.row == 10 && repair.column == 10 && repair.originalLetter == "I" && repair.repairedLetter == "A"
+        })
+    }
+
     @Test(
         "repairs dictionary-backed fixture gaps together",
         arguments: [
             ("board-real-7273.jpg", ["STYPA"]),
             ("board-real-7295.jpg", ["ANIMĄ", "SROCZYMI"]),
             ("board-real-7330.jpg", ["DLAŃ", "TEGO", "BLATY", "SERIA"]),
-            ("board-real-7331.jpg", ["REJ"]),
+            ("board-real-7331.jpg", ["REJ", "JADY"]),
             ("board-real-7367.jpg", ["STAZIE", "DMIJ"]),
             ("board-real-7392.jpg", ["BAKIEM", "SEZON"]),
             ("board-real-7403.jpg", ["MĄCIE"])
@@ -247,6 +398,7 @@ struct OCRFixtureTests {
             ("board-real-7330.jpg", "TEGO"),
             ("board-real-7330.jpg", "SERIA"),
             ("board-real-7331.jpg", "REJ"),
+            ("board-real-7331.jpg", "JADY"),
             ("board-real-7367.jpg", "STAZIE"),
             ("board-real-7392.jpg", "BAKIEM"),
             ("board-real-7392.jpg", "SEZON"),
@@ -304,45 +456,12 @@ struct OCRFixtureTests {
         }
 
         print("OCR DEBUG \(fileName)")
-        print("SUMMARY occupied=\(result.board.allCells.filter { !$0.isEmpty }.count) reads=\(result.cells.count) repairs=\(result.appliedRepairs.count)")
-        for row in 0..<Board.size {
-            let line = String((0..<Board.size).map { column in
-                result.board[row, column].letter ?? "."
-            })
-            print(String(format: "%02d %@", row + 1, line))
+        printBoardDebug(title: "RAW", result: result, expectation: expectation)
+
+        if let repaired = debugRepairedResult(fileName: fileName, result: result, expectation: expectation) {
+            printBoardDebug(title: "REPAIRED", result: repaired, expectation: expectation)
         }
 
-        let words = Set(boardLines(result.board))
-        print("WORDS \(words.sorted().joined(separator: ", "))")
-        if let expectation {
-            let missingWords = expectation.expectedWords.filter { !words.contains($0) }
-            if !missingWords.isEmpty {
-                print("MISSING WORDS \(missingWords.joined(separator: ", "))")
-            }
-
-            for (coordinate, expectedLetter) in expectation.expectedCells.sorted(by: { $0.key < $1.key }) {
-                guard let parsed = try? parseCoordinate(coordinate) else { continue }
-                let actual = result.board[parsed.row, parsed.column].letter
-                if actual != expectedLetter {
-                    print("MISSING CELL \(coordinate) expected=\(expectedLetter) actual=\(actual.map(String.init) ?? ".")")
-                }
-            }
-
-            for coordinate in expectation.forbiddenCells.sorted() {
-                guard let parsed = try? parseCoordinate(coordinate),
-                      let actual = result.board[parsed.row, parsed.column].letter else {
-                    continue
-                }
-                print("FORBIDDEN CELL \(coordinate)=\(actual)")
-            }
-        }
-        if !result.appliedRepairs.isEmpty {
-            let repairs = result.appliedRepairs.map { repair in
-                let coordinate = coordinateName(row: repair.row, column: repair.column)
-                return "\(coordinate):\(repair.originalLetter.map(String.init) ?? ".")->\(repair.repairedLetter.map(String.init) ?? ".")"
-            }
-            print("REPAIRS \(repairs.joined(separator: ", "))")
-        }
         for cell in result.cells.sorted(by: { lhs, rhs in
             if lhs.row != rhs.row { return lhs.row < rhs.row }
             return lhs.column < rhs.column
@@ -355,6 +474,94 @@ struct OCRFixtureTests {
                 .joined(separator: " ")
             print("\(coordinate)=\(letter) conf=\(String(format: "%.2f", cell.confidence)) digit=\(digit) \(candidates)")
         }
+    }
+
+    private func printBoardDebug(title: String, result: BoardReadResult, expectation: FixtureExpectation?) {
+        print("\(title) SUMMARY occupied=\(result.board.allCells.filter { !$0.isEmpty }.count) reads=\(result.cells.count) repairs=\(result.appliedRepairs.count)")
+        printRenderedBoard(result.board)
+
+        let words = Set(boardLines(result.board))
+        print("\(title) WORDS \(words.sorted().joined(separator: ", "))")
+        if let expectation {
+            let missingWords = expectation.expectedWords.filter { !words.contains($0) }
+            if !missingWords.isEmpty {
+                print("\(title) MISSING WORDS \(missingWords.joined(separator: ", "))")
+            }
+
+            for (coordinate, expectedLetter) in expectation.expectedCells.sorted(by: { $0.key < $1.key }) {
+                guard let parsed = try? parseCoordinate(coordinate) else { continue }
+                let actual = result.board[parsed.row, parsed.column].letter
+                if actual != expectedLetter {
+                    print("\(title) MISSING CELL \(coordinate) expected=\(expectedLetter) actual=\(actual.map(String.init) ?? ".")")
+                }
+            }
+
+            for coordinate in expectation.forbiddenCells.sorted() {
+                guard let parsed = try? parseCoordinate(coordinate),
+                      let actual = result.board[parsed.row, parsed.column].letter else {
+                    continue
+                }
+                print("\(title) FORBIDDEN CELL \(coordinate)=\(actual)")
+            }
+        }
+        if !result.appliedRepairs.isEmpty {
+            let repairs = result.appliedRepairs.map { repair in
+                let coordinate = coordinateName(row: repair.row, column: repair.column)
+                return "\(coordinate):\(repair.originalLetter.map(String.init) ?? ".")->\(repair.repairedLetter.map(String.init) ?? ".")"
+            }
+            print("\(title) REPAIRS \(repairs.joined(separator: ", "))")
+        }
+    }
+
+    private func printRenderedBoard(_ board: Board) {
+        for row in 0..<Board.size {
+            let line = String((0..<Board.size).map { column in
+                board[row, column].letter ?? "."
+            })
+            print(String(format: "%02d %@", row + 1, line))
+        }
+    }
+
+    private func debugRepairedResult(
+        fileName: String,
+        result: BoardReadResult,
+        expectation: FixtureExpectation?
+    ) -> BoardReadResult? {
+        let words = debugRepairWords(fileName: fileName, expectation: expectation)
+        guard !words.isEmpty,
+              let values = try? BundledDataLoader.loadLetterValues() else {
+            return nil
+        }
+
+        return DictionaryBoardRepairer(
+            dictionary: PolishWordDictionary.fromWords(Array(Set(words.flatMap(dictionaryWords(for:))))),
+            letterValues: values
+        ).repair(result)
+    }
+
+    private func debugRepairWords(fileName: String, expectation: FixtureExpectation?) -> [String] {
+        var words = expectation?.expectedWords ?? []
+        switch fileName {
+        case "board-real-7273.jpg":
+            words.append(contentsOf: ["STYPA"])
+        case "board-real-7295.jpg":
+            words.append(contentsOf: ["ANIMĄ", "SROCZYMI"])
+        case "board-real-7330.jpg":
+            words.append(contentsOf: ["DLAŃ", "TEGO", "BLATY", "SERIA", "WIĘŹ"])
+        case "board-real-7331.jpg":
+            words.append(contentsOf: ["REJ", "JADY"])
+        case "board-real-7367.jpg":
+            words.append(contentsOf: ["ŚRODY", "STAZIE", "DMIJ"])
+        case "board-real-7392.jpg":
+            words.append(contentsOf: ["STANOWIŁAŚ", "BAKIEM", "SEZON"])
+        case "board-real-7403.jpg":
+            words.append(contentsOf: ["MĄCIE"])
+        case "board-sample-cropped.png":
+            words.append(contentsOf: ["SWA", "GROZIMY", "ZAMEK", "FAJNY", "MOPS", "SŁAWNY", "GLEBY"])
+        default:
+            break
+        }
+        return Array(Set(words))
     }
 
     private func parseCoordinate(_ coordinate: String) throws -> (row: Int, column: Int) {
@@ -371,5 +578,12 @@ struct OCRFixtureTests {
 
     private func coordinateName(row: Int, column: Int) -> String {
         "\(String(UnicodeScalar(UInt8(ascii: "A") + UInt8(column))))\(row + 1)"
+    }
+
+    private func repairSummary(_ repair: BoardRepair) -> String {
+        let coordinate = coordinateName(row: repair.row, column: repair.column)
+        let original = repair.originalLetter.map(String.init) ?? "."
+        let repaired = repair.repairedLetter.map(String.init) ?? "."
+        return "\(coordinate):\(original)->\(repaired)"
     }
 }

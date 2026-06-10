@@ -12,12 +12,13 @@ struct BoardCorrectionView: View {
                     board: state.board,
                     highlightedCells: state.autoRepairedCellKeys,
                     warningCells: warningCellKeys,
+                    selectedCellKey: state.selectedCorrectionCellKey,
                     onTapCell: { row, column in
                         state.appendCorrection(row: row, column: column)
                         correctionsFocused = true
                     }
                 )
-                .frame(maxHeight: 520)
+                .frame(maxHeight: 620)
 
                 boardStatus
                 ocrReview
@@ -97,7 +98,7 @@ struct BoardCorrectionView: View {
                     }
 
                     LazyVGrid(
-                        columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 8),
+                        columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7),
                         spacing: 6
                     ) {
                         ForEach(PolishAlphabet.letters.map(String.init), id: \.self) { letter in
@@ -106,7 +107,7 @@ struct BoardCorrectionView: View {
                                 correctionsFocused = true
                             }
                             .buttonStyle(.bordered)
-                            .font(.caption.weight(.semibold))
+                            .font(.callout.weight(.semibold))
                             .minimumScaleFactor(0.75)
                         }
                     }
@@ -144,6 +145,12 @@ struct BoardCorrectionView: View {
                 Text(state.reviewStatus)
                     .font(.footnote)
                     .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !state.autoRepairStatus.isEmpty {
+                Text("Auto-corrections: \(state.autoRepairStatus)")
+                    .font(.footnote)
+                    .foregroundStyle(.green)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if !state.boardValidationStatus.isEmpty {
@@ -335,17 +342,20 @@ struct BoardGridView: View {
     let board: ScrabblerKit.Board
     let highlightedCells: Set<String>
     let warningCells: Set<String>
+    let selectedCellKey: String?
     let onTapCell: (Int, Int) -> Void
 
     init(
         board: ScrabblerKit.Board,
         highlightedCells: Set<String> = [],
         warningCells: Set<String> = [],
+        selectedCellKey: String? = nil,
         onTapCell: @escaping (Int, Int) -> Void
     ) {
         self.board = board
         self.highlightedCells = highlightedCells
         self.warningCells = warningCells
+        self.selectedCellKey = selectedCellKey
         self.onTapCell = onTapCell
     }
 
@@ -377,10 +387,11 @@ struct BoardGridView: View {
                                 let key = Self.key(row: row, column: column)
                                 let isHighlighted = highlightedCells.contains(key)
                                 let needsReview = warningCells.contains(key)
+                                let isSelected = selectedCellKey == key
                                 ZStack {
                                     Rectangle()
-                                        .fill(fillColor(row: row, column: column, highlighted: isHighlighted, needsReview: needsReview))
-                                        .border(borderColor(highlighted: isHighlighted, needsReview: needsReview), width: isHighlighted || needsReview ? 2 : 1)
+                                        .fill(fillColor(row: row, column: column, highlighted: isHighlighted, needsReview: needsReview, selected: isSelected))
+                                        .border(borderColor(highlighted: isHighlighted, needsReview: needsReview, selected: isSelected), width: isSelected ? 3 : (isHighlighted || needsReview ? 2 : 1))
                                     cellContent(row: row, column: column, cellSize: cellSize)
                                 }
                             }
@@ -421,7 +432,10 @@ struct BoardGridView: View {
         }
     }
 
-    private func fillColor(row: Int, column: Int, highlighted: Bool, needsReview: Bool) -> Color {
+    private func fillColor(row: Int, column: Int, highlighted: Bool, needsReview: Bool, selected: Bool) -> Color {
+        if selected {
+            return Color.accentColor.opacity(board[row, column].letter == nil ? 0.22 : 0.38)
+        }
         if highlighted {
             return Color.green.opacity(0.75)
         }
@@ -446,7 +460,10 @@ struct BoardGridView: View {
         }
     }
 
-    private func borderColor(highlighted: Bool, needsReview: Bool) -> Color {
+    private func borderColor(highlighted: Bool, needsReview: Bool, selected: Bool) -> Color {
+        if selected {
+            return Color.accentColor
+        }
         if highlighted {
             return Color.green
         }

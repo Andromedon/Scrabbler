@@ -38,6 +38,26 @@ struct DictionaryBoardRepairerTests {
         #expect(repaired.board[7, 7].letter == "D")
     }
 
+    @Test func fixesODInShortRunWhenDictionaryAndScoreDigitAgree() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 7, letter: "J")
+            .setCell(row: 7, column: 8, letter: "A")
+            .setCell(row: 7, column: 9, letter: "O")
+            .setCell(row: 7, column: 10, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            cell(row: 7, column: 9, letter: "O", confidence: 0.67, scoreDigit: 2, candidates: [
+                LetterCandidate(letter: "D", distance: 0.09, matchedScoreDigit: 2),
+                LetterCandidate(letter: "B", distance: 0.13),
+                LetterCandidate(letter: "O", distance: 0.14)
+            ])
+        ])
+
+        let repaired = repairer(words: "JADY").repair(result)
+
+        #expect(repaired.board[7, 9].letter == "D")
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("JADY"))
+    }
+
     @Test func refusesAmbiguousRepairs() {
         let board = emptyBoard()
             .setCell(row: 7, column: 7, letter: "C")
@@ -164,6 +184,45 @@ struct DictionaryBoardRepairerTests {
         #expect(repaired.board[1, 9].letter == "I")
         #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("MĄCIE"))
         #expect(repaired.appliedRepairs.contains { $0.row == 1 && $0.column == 5 && $0.originalLetter == "W" && $0.repairedLetter == nil })
+    }
+
+    @Test func dropsLowConfidenceEdgeFalsePositiveWhenRemainingWordIsValid() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 7, letter: "X")
+            .setCell(row: 7, column: 8, letter: "B")
+            .setCell(row: 7, column: 9, letter: "O")
+            .setCell(row: 7, column: 10, letter: "M")
+        let result = BoardReadResult(board: board, cells: [
+            cell(row: 7, column: 7, letter: "X", confidence: 0.50, candidates: [
+                LetterCandidate(letter: "X", distance: 0.50)
+            ])
+        ])
+
+        let repaired = repairer(words: "BOM").repair(result)
+
+        #expect(repaired.board[7, 7].letter == nil)
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("BOM"))
+        #expect(repaired.appliedRepairs.contains { $0.row == 7 && $0.column == 7 && $0.originalLetter == "X" && $0.repairedLetter == nil })
+    }
+
+    @Test func doesNotDropEdgeFalsePositiveWhenItBelongsToValidCrossWord() {
+        let board = emptyBoard()
+            .setCell(row: 6, column: 7, letter: "O")
+            .setCell(row: 7, column: 7, letter: "Ż")
+            .setCell(row: 8, column: 7, letter: "A")
+            .setCell(row: 7, column: 8, letter: "B")
+            .setCell(row: 7, column: 9, letter: "O")
+            .setCell(row: 7, column: 10, letter: "M")
+        let result = BoardReadResult(board: board, cells: [
+            cell(row: 7, column: 7, letter: "Ż", confidence: 0.50, candidates: [
+                LetterCandidate(letter: "Ż", distance: 0.50)
+            ])
+        ])
+
+        let repaired = repairer(words: "BOM", "OŻA").repair(result)
+
+        #expect(repaired.board[7, 7].letter == "Ż")
+        #expect(repaired.appliedRepairs.isEmpty)
     }
 
     @Test func fillsTwoVisualGapsWhenDictionaryPatternIsUnique() {
@@ -427,6 +486,71 @@ struct DictionaryBoardRepairerTests {
         #expect(repaired.board[7, 10].letter == "T")
         #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("TEGO"))
         #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("BLATY"))
+    }
+
+    @Test func repairsSeveralLowConfidenceLettersWhenUniqueDictionaryWordMatches() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 7, letter: "Ę")
+            .setCell(row: 7, column: 8, letter: "I")
+            .setCell(row: 7, column: 9, letter: "A")
+            .setCell(row: 7, column: 10, letter: "W")
+            .setCell(row: 7, column: 11, letter: "Ń")
+            .setCell(row: 7, column: 12, letter: "Y")
+        let result = BoardReadResult(board: board, cells: [
+            cell(row: 7, column: 7, letter: "Ę", confidence: 0.50, scoreDigit: 5, candidates: [
+                LetterCandidate(letter: "Ę", distance: 0.47, matchedScoreDigit: 5),
+                LetterCandidate(letter: "Ś", distance: 0.49, matchedScoreDigit: 5),
+                LetterCandidate(letter: "S", distance: 0.50)
+            ]),
+            cell(row: 7, column: 8, letter: "I", confidence: 0.50, candidates: [
+                LetterCandidate(letter: "E", distance: 0.45),
+                LetterCandidate(letter: "Ł", distance: 0.46),
+                LetterCandidate(letter: "L", distance: 0.49),
+                LetterCandidate(letter: "I", distance: 0.50)
+            ]),
+            cell(row: 7, column: 11, letter: "Ń", confidence: 0.66, scoreDigit: 5, candidates: [
+                LetterCandidate(letter: "Ń", distance: 0.38, matchedScoreDigit: 5),
+                LetterCandidate(letter: "N", distance: 0.44),
+                LetterCandidate(letter: "R", distance: 0.44)
+            ])
+        ])
+
+        let repaired = repairer(words: "SŁAWNY").repair(result)
+
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("SŁAWNY"))
+        #expect(repaired.board[7, 7].letter == "S")
+        #expect(repaired.board[7, 8].letter == "Ł")
+        #expect(repaired.board[7, 11].letter == "N")
+    }
+
+    @Test func prefersSeveralLowConfidenceLetterRepairsWithStrongerOCRSupport() {
+        let board = emptyBoard()
+            .setCell(row: 7, column: 7, letter: "G")
+            .setCell(row: 7, column: 8, letter: "L")
+            .setCell(row: 7, column: 9, letter: "L")
+            .setCell(row: 7, column: 10, letter: "B")
+            .setCell(row: 7, column: 11, letter: "A")
+        let result = BoardReadResult(board: board, cells: [
+            cell(row: 7, column: 8, letter: "L", confidence: 0.50, candidates: [
+                LetterCandidate(letter: "L", distance: 0.46),
+                LetterCandidate(letter: "E", distance: 0.47)
+            ]),
+            cell(row: 7, column: 10, letter: "B", confidence: 0.50, candidates: [
+                LetterCandidate(letter: "B", distance: 0.48),
+                LetterCandidate(letter: "P", distance: 0.49)
+            ]),
+            cell(row: 7, column: 11, letter: "A", confidence: 0.50, candidates: [
+                LetterCandidate(letter: "Y", distance: 0.45),
+                LetterCandidate(letter: "A", distance: 0.50)
+            ])
+        ])
+
+        let repaired = repairer(words: "GLEBY", "GLLPY").repair(result)
+
+        #expect(BoardWordExtractor.extractWords(from: repaired.board).map(\.text).contains("GLLPY"))
+        #expect(repaired.board[7, 8].letter == "L")
+        #expect(repaired.board[7, 10].letter == "P")
+        #expect(repaired.board[7, 11].letter == "Y")
     }
 
     private func emptyBoard() -> Board {
